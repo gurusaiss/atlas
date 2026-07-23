@@ -56,8 +56,16 @@ uvicorn, `Dockerfile.worker` for Celery), selected via each service's
    `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `GROQ_API_KEY` (and `GEMINI_API_KEY`
    / `MISTRAL_API_KEY` once you have them), `CORS_ORIGINS` (your Vercel URL).
 4. Neither service needs a Start Command set -- each Dockerfile's `CMD` handles it.
-5. Run migrations once, via Render's Shell tab on `atlas-backend`: `alembic upgrade head`
-6. Seed demo data once, same Shell: `python seed_demo_data.py`
+5. Migrations run automatically on every `atlas-backend` boot (via
+   `entrypoint.sh` running `alembic upgrade head` before uvicorn starts) --
+   no Shell access needed, which matters because Render's free tier doesn't
+   include Shell.
+6. To seed demo data (also Shell-free): on `atlas-backend`, add the environment
+   variable `RUN_SEED_ON_START=true` and save -- Render redeploys, and
+   `entrypoint.sh` runs `python seed_demo_data.py` once before starting the
+   server. Watch the deploy logs for "Demo data loaded." Afterward, set
+   `RUN_SEED_ON_START` back to `false` (seeding is idempotent and safe to leave
+   on, but turning it off skips the existence-check queries on every future boot).
 7. Render auto-deploys both services on every push to `main` once connected to
    the GitHub repo -- no extra CI wiring needed for the backend/worker.
 

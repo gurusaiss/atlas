@@ -29,7 +29,8 @@ WORKDIR /app
 COPY --from=builder /root/.local /home/atlas/.local
 COPY . .
 
-RUN mkdir -p /app/chroma_data /app/tmp_uploads && chown -R atlas:atlas /app
+RUN mkdir -p /app/chroma_data /app/tmp_uploads && chown -R atlas:atlas /app \
+    && chmod +x /app/entrypoint.sh
 
 ENV PATH=/home/atlas/.local/bin:$PATH \
     PYTHONUNBUFFERED=1 \
@@ -39,4 +40,5 @@ USER atlas
 
 EXPOSE 8000
 
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

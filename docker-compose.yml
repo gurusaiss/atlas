@@ -59,7 +59,7 @@ services:
   celery_worker:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.worker
     container_name: atlas_celery_worker
     restart: unless-stopped
     env_file:
@@ -75,7 +75,6 @@ services:
     volumes:
       - ./backend:/app
       - atlas_chroma_data:/app/chroma_data
-    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
 
   frontend:
     build:
