@@ -42,18 +42,23 @@ python backend/seed_demo_data.py       # populates demo data + runs a live analy
 
 ### 3. Deploy the backend + Celery worker to Render
 
-1. Create a new Render **Web Service** from this repo, root directory `backend/`,
-   environment "Docker" (uses `backend/Dockerfile` directly). Name it `atlas-backend`.
-2. Create a Render **Background Worker** from the same repo/directory, same
-   Dockerfile. Name it `atlas-celery-worker`.
+Render's Docker environment has no "Start Command" field -- it just runs
+whatever `CMD` is in the Dockerfile. Since the web service and the worker need
+different commands, they use two different Dockerfiles (`Dockerfile` for
+uvicorn, `Dockerfile.worker` for Celery), selected via each service's
+**Dockerfile Path** setting.
+
+1. Create a new Render **Web Service** from this repo. Root Directory: `backend`.
+   Environment: Docker. Dockerfile Path: `Dockerfile` (the default). Name it `atlas-backend`.
+2. Create a Render **Background Worker** from the same repo. Root Directory: `backend`.
+   Environment: Docker. Dockerfile Path: `Dockerfile.worker`. Name it `atlas-celery-worker`.
 3. Set environment variables on both services (from `backend/.env.example`):
-   `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`,
-   `MISTRAL_API_KEY`, `CORS_ORIGINS` (your Vercel URL).
-4. `atlas-backend`'s start command: `uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4`
-5. `atlas-celery-worker`'s start command: `celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2`
-6. Run migrations once, via Render's Shell tab on `atlas-backend`: `alembic upgrade head`
-7. Seed demo data once, same Shell: `python seed_demo_data.py`
-8. Render auto-deploys both services on every push to `main` once connected to
+   `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `GROQ_API_KEY` (and `GEMINI_API_KEY`
+   / `MISTRAL_API_KEY` once you have them), `CORS_ORIGINS` (your Vercel URL).
+4. Neither service needs a Start Command set -- each Dockerfile's `CMD` handles it.
+5. Run migrations once, via Render's Shell tab on `atlas-backend`: `alembic upgrade head`
+6. Seed demo data once, same Shell: `python seed_demo_data.py`
+7. Render auto-deploys both services on every push to `main` once connected to
    the GitHub repo -- no extra CI wiring needed for the backend/worker.
 
 ### 4. Deploy the frontend to Vercel

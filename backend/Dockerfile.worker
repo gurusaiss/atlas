@@ -1,0 +1,43 @@
+# Identical build to Dockerfile, but runs the Celery worker instead of uvicorn.
+# Render's Docker environment has no "Start Command" override field -- it just
+# runs the Dockerfile's CMD -- so the worker needs its own Dockerfile rather
+# than sharing one with the web service.
+
+# --- Build stage ---
+FROM python:3.11-slim AS builder
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+RUN python -m spacy download en_core_web_sm
+
+# --- Runtime stage ---
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -r atlas && useradd -r -g atlas -m atlas
+
+WORKDIR /app
+
+COPY --from=builder /root/.local /home/atlas/.local
+COPY . .
+
+RUN mkdir -p /app/chroma_data /app/tmp_uploads && chown -R atlas:atlas /app
+
+ENV PATH=/home/atlas/.local/bin:$PATH \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+USER atlas
+
+CMD ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
