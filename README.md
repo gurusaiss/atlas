@@ -115,7 +115,7 @@ graph LR
 - [x] Interactive React Flow call-graph and microservices diagrams
 - [x] LLM-as-judge evaluation harness (faithfulness, completeness, actionability)
 - [x] Full observability: Prometheus metrics, structured JSON logs, OpenTelemetry traces
-- [x] 100% free-tier deployable (Neon + Upstash + Railway + Vercel)
+- [x] 100% free-tier deployable (Neon + Upstash + Render + Vercel)
 
 ## Tech Stack
 
@@ -148,7 +148,7 @@ python backend/seed_demo_data.py       # seeds demo data + runs one live analysi
 - Demo login: `demo@atlas.ai` / `DemoAtlas2024!`
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the free-tier production
-deployment (Railway + Vercel + Neon + Upstash).
+deployment (Render + Vercel + Neon + Upstash).
 
 ## Documentation
 

@@ -2,7 +2,7 @@
 
 Atlas is designed to run entirely on free tiers (Constraint 3). This guide
 covers both local Docker development and the free-tier production stack
-(Railway + Vercel + Neon + Upstash).
+(Render + Vercel + Neon + Upstash).
 
 ## Local development (Docker)
 
@@ -23,7 +23,7 @@ python backend/seed_demo_data.py       # populates demo data + runs a live analy
 
 | Component | Provider | Why |
 |---|---|---|
-| Backend API + Celery worker | Railway | Free tier, easy multi-service deploys, Docker-native |
+| Backend API + Celery worker | Render | Free tier, Docker-native web service + background worker |
 | Frontend (static build) | Vercel | Free tier, zero-config Vite/React hosting |
 | Postgres | Neon | Free serverless Postgres, same wire protocol as local Docker Postgres |
 | Redis (cache + Celery broker) | Upstash | Free tier, serverless Redis |
@@ -40,43 +40,53 @@ python backend/seed_demo_data.py       # populates demo data + runs a live analy
 1. Create a database at [upstash.com](https://upstash.com).
 2. Copy the `rediss://` connection URL (Upstash uses TLS).
 
-### 3. Deploy the backend + Celery worker to Railway
+### 3. Deploy the backend + Celery worker to Render
 
-1. Create a new Railway project, add two services from the same repo
-   (`backend/Dockerfile`): `atlas-backend` and `atlas-celery-worker`.
-2. Set environment variables on both services (from `backend/.env.example`):
+1. Create a new Render **Web Service** from this repo, root directory `backend/`,
+   environment "Docker" (uses `backend/Dockerfile` directly). Name it `atlas-backend`.
+2. Create a Render **Background Worker** from the same repo/directory, same
+   Dockerfile. Name it `atlas-celery-worker`.
+3. Set environment variables on both services (from `backend/.env.example`):
    `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`,
    `MISTRAL_API_KEY`, `CORS_ORIGINS` (your Vercel URL).
-3. `atlas-backend`'s start command: `uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4`
-4. `atlas-celery-worker`'s start command: `celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2`
-5. Run migrations once: `railway run --service atlas-backend alembic upgrade head`
-6. Seed demo data once: `railway run --service atlas-backend python seed_demo_data.py`
+4. `atlas-backend`'s start command: `uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4`
+5. `atlas-celery-worker`'s start command: `celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2`
+6. Run migrations once, via Render's Shell tab on `atlas-backend`: `alembic upgrade head`
+7. Seed demo data once, same Shell: `python seed_demo_data.py`
+8. Render auto-deploys both services on every push to `main` once connected to
+   the GitHub repo -- no extra CI wiring needed for the backend/worker.
 
 ### 4. Deploy the frontend to Vercel
 
 1. Import the repo into Vercel, set the root directory to `frontend/`.
 2. Set the build command to `npm run build`, output directory `dist`.
-3. Set `VITE_API_BASE_URL` to the Railway backend's public URL.
+3. Set `VITE_API_BASE_URL` to the Render backend's public URL.
 
-### 5. Wire up GitHub Actions secrets
+### 5. Wire up GitHub Actions secrets (frontend + optional explicit redeploy)
 
-For `.github/workflows/deploy.yml` to deploy automatically on push to `main`,
-set these repository secrets: `RAILWAY_TOKEN`, `VERCEL_TOKEN`,
-`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+For `.github/workflows/deploy.yml` to deploy the frontend automatically on
+push to `main`, set these repository secrets: `VERCEL_TOKEN`,
+`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. If you want the workflow to also
+trigger an explicit backend redeploy (instead of relying on Render's native
+auto-deploy), set `RENDER_BACKEND_DEPLOY_HOOK_URL` and
+`RENDER_WORKER_DEPLOY_HOOK_URL` (from each service's Settings -> Deploy Hook).
 
 ### 6. Observability (optional but recommended)
 
 Set `OTEL_EXPORTER_OTLP_ENDPOINT` to your Grafana Cloud Tempo endpoint, and
 import `grafana/dashboard.json` into a Grafana Cloud instance pointed at
-Railway's `/metrics` endpoint (via a Prometheus remote-write agent, or
+Render's `/metrics` endpoint (via a Prometheus remote-write agent, or
 Grafana Cloud's hosted Prometheus scrape).
 
 ## Free-tier limits to plan around
 
 - **Neon**: compute autosuspends after a few minutes idle (~1-2s cold start on
   next query). Pre-warm before a live demo by hitting `/health/ready` first.
-- **Railway**: free tier has a monthly usage credit, not unlimited uptime --
-  fine for a portfolio/interview project, not for sustained production traffic.
+- **Render**: free web services spin down after ~15 minutes of inactivity and
+  take up to ~50s to cold-start the next request -- worse than Neon's cold
+  start, so pre-warm the backend itself (not just the DB) a minute or two
+  before a live interview demo. Free tier is fine for a portfolio project,
+  not for sustained production traffic.
 - **Upstash**: free tier caps daily commands; the 24h LLM response cache TTL
   keeps this well within limits for demo-scale usage.
 - **Gemini/Groq/Mistral free tiers**: see `backend/.env.example` for current

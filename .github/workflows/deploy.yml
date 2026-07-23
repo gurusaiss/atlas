@@ -16,26 +16,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
+      # Render auto-deploys both services on every push to main once connected
+      # to this GitHub repo -- these deploy-hook calls are an optional explicit
+      # trigger (useful if auto-deploy is disabled, or to force a redeploy
+      # after a secrets-only change that doesn't touch the code).
+      - name: Trigger Render backend deploy
+        if: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK_URL != '' }}
+        run: curl -fsS -X POST "${{ secrets.RENDER_BACKEND_DEPLOY_HOOK_URL }}"
 
-      - name: Deploy backend to Railway
-        working-directory: backend
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service atlas-backend --detach
+      - name: Trigger Render Celery worker deploy
+        if: ${{ secrets.RENDER_WORKER_DEPLOY_HOOK_URL != '' }}
+        run: curl -fsS -X POST "${{ secrets.RENDER_WORKER_DEPLOY_HOOK_URL }}"
 
-      - name: Deploy Celery worker to Railway
-        working-directory: backend
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service atlas-celery-worker --detach
-
-      - name: Run database migrations
-        working-directory: backend
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway run --service atlas-backend alembic upgrade head
+      # Render has no CI-triggerable remote shell -- run `alembic upgrade head`
+      # via the Render dashboard's Shell tab on atlas-backend after a schema
+      # change lands (see docs/DEPLOYMENT.md).
 
   deploy-frontend:
     runs-on: ubuntu-latest
