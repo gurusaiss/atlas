@@ -1,0 +1,40 @@
+# Production overrides. Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Differences from local dev:
+# - No bind-mounted source (image is immutable; rebuild to deploy)
+# - No --reload; multiple uvicorn workers
+# - Postgres/Redis point at managed services (Neon/Upstash) via env vars,
+#   not the local postgres/redis containers
+# - Frontend served by nginx only (already the base config's behavior)
+
+services:
+  backend:
+    volumes: [] # drop the dev bind-mount; the image is self-contained
+    environment:
+      APP_ENV: production
+      DEBUG: "false"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    depends_on: [] # managed Postgres/Redis are external; no local service dependency
+    restart: always
+
+  celery_worker:
+    volumes: []
+    environment:
+      APP_ENV: production
+      DEBUG: "false"
+    depends_on: []
+    restart: always
+
+  frontend:
+    restart: always
+
+  # Local postgres/redis are not used in production (Neon + Upstash instead) --
+  # omit them from the prod compose invocation by not including docker-compose.yml's
+  # postgres/redis services, or scale them to 0 if you must keep the file combined:
+  postgres:
+    deploy:
+      replicas: 0
+  redis:
+    deploy:
+      replicas: 0

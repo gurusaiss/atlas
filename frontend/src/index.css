@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-atlas-bg text-gray-100 antialiased;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-atlas-border rounded;
+  }
+}
+
+@layer components {
+  .atlas-card {
+    @apply bg-atlas-panel border border-atlas-border rounded-lg;
+  }
+  .atlas-btn-primary {
+    @apply bg-atlas-accent hover:bg-atlas-accentHover text-white font-medium rounded-md px-4 py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .atlas-btn-secondary {
+    @apply bg-transparent border border-atlas-border hover:border-atlas-accent text-gray-200 font-medium rounded-md px-4 py-2 transition-colors;
+  }
+  .atlas-input {
+    @apply bg-atlas-bg border border-atlas-border rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-atlas-accent;
+  }
+  .atlas-badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
+  }
+}

@@ -1,0 +1,43 @@
+# Environment
+.env
+.env.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.venv_test/
+venv/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+coverage.xml
+.coverage
+
+# Node / frontend
+node_modules/
+dist/
+frontend/.vite/
+
+# Data / uploads / caches (never commit)
+backend/chroma_data/
+backend/tmp_uploads/
+backend/*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Local tooling config / build spec (not part of the shipped project)
+.claude/
+ATLAS_CLAUDE_CODE_PROMPT.md
