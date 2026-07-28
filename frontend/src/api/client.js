@@ -1,8 +1,16 @@
 import axios from "axios";
 import { useAtlasStore } from "../store/atlasStore.js";
 
+// In local dev this is unset, so requests go to the relative "/api/v1" path,
+// which Vite's dev-server proxy (vite.config.js) forwards to localhost:8000.
+// In production (Vercel) there is no such proxy -- VITE_API_BASE_URL must be
+// set to the deployed backend's origin (e.g. https://atlas-backend.onrender.com),
+// or every API call 404s against Vercel's own static-file origin.
+export const API_ROOT = import.meta.env.VITE_API_BASE_URL || "";
+export const API_BASE_PATH = `${API_ROOT}/api/v1`;
+
 const apiClient = axios.create({
-  baseURL: "/api/v1",
+  baseURL: API_BASE_PATH,
   withCredentials: true, // send the httpOnly refresh_token cookie
 });
 

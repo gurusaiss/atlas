@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAtlasStore } from "../store/atlasStore.js";
+import { API_BASE_PATH } from "../api/client.js";
 
 /**
  * Connects to the job SSE stream via fetch + ReadableStream (not EventSource,
@@ -19,7 +20,7 @@ export function useSSE(jobId, onEvent) {
 
     async function connect() {
       try {
-        const response = await fetch(`/api/v1/jobs/${jobId}/stream`, {
+        const response = await fetch(`${API_BASE_PATH}/jobs/${jobId}/stream`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
           credentials: "include",
           signal: controller.signal,
