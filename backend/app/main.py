@@ -27,6 +27,8 @@ app = FastAPI(title="Atlas", version="1.0.0", description="Agentic AI Legacy Mod
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+logger.info("Configured CORS origins: %s", settings.cors_origins_list)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -66,7 +68,11 @@ async def unhandled_exception_handler(request, exc):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": app.version}
+    # cors_origins is included here (not just logged) so a live deploy's actual
+    # config is a single curl away instead of a trip through the host's log viewer --
+    # this is exactly the field that made a real CORS_ORIGINS mismatch hard to
+    # diagnose remotely. Not sensitive: these are public frontend origins, not secrets.
+    return {"status": "ok", "version": app.version, "cors_origins": settings.cors_origins_list}
 
 
 @app.get("/health/ready")
