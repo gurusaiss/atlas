@@ -28,8 +28,11 @@ class LoginRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
+    # Deliberately does NOT include the refresh token -- it is set exclusively as
+    # an httpOnly cookie (see routers/auth.py's _set_refresh_cookie). Returning it
+    # here too would hand a JS-readable copy of a token whose entire purpose is to
+    # be unreadable by JS, defeating httpOnly's protection against XSS-based theft.
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
     expires_in: int
 

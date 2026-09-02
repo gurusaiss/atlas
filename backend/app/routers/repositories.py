@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,7 @@ from app.deps import get_current_user
 from app.models.project import Project
 from app.models.repository import CallGraphEdge, CodeFile, Repository
 from app.models.user import User
+from app.rate_limit import limiter
 from app.schemas.repository import RepositoryGithubCreate, RepositoryDetailResponse, RepositoryResponse
 from app.services.repo_service import clone_github_repo
 from app.utils.file_utils import save_and_extract_zip
@@ -55,7 +56,9 @@ async def list_repositories(
     response_model=RepositoryResponse,
     status_code=201,
 )
+@limiter.limit("20/hour")
 async def upload_repository(
+    request: Request,
     project_id: uuid.UUID,
     file: UploadFile,
     db: AsyncSession = Depends(get_db),
@@ -74,7 +77,8 @@ async def upload_repository(
     await db.commit()
     await db.refresh(repository)
 
-    # Phase 2 wires this to a Celery parse task; Phase 1 stores the repo as "pending".
+    # Parsing itself runs as the first step of the LangGraph pipeline when the
+    # user starts a job (POST /jobs) -- this just registers the repo as "pending".
     return repository
 
 
@@ -83,7 +87,9 @@ async def upload_repository(
     response_model=RepositoryResponse,
     status_code=201,
 )
+@limiter.limit("20/hour")
 async def add_github_repository(
+    request: Request,
     project_id: uuid.UUID,
     body: RepositoryGithubCreate,
     db: AsyncSession = Depends(get_db),

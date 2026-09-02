@@ -17,12 +17,21 @@ REFRESH_COOKIE_MAX_AGE = settings.refresh_token_expire_days * 24 * 60 * 60
 
 
 def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    # The deployed frontend (Vercel) and backend (Render) are on different
+    # registrable domains -- a genuinely cross-*site* request, not just
+    # cross-origin. SameSite=Lax cookies are withheld on cross-site fetch/XHR
+    # (only sent on top-level navigation), so a Lax cookie here would silently
+    # never reach /auth/refresh in production: every user would get logged out
+    # on reload or the moment their 15-minute access token expired. SameSite=None
+    # is required for cross-site fetch, and browsers mandate Secure whenever
+    # SameSite=None is used.
+    cross_site = settings.is_production
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,
         value=refresh_token,
         httponly=True,
-        secure=settings.app_env != "development",
-        samesite="lax",
+        secure=cross_site or settings.app_env != "development",
+        samesite="none" if cross_site else "lax",
         max_age=REFRESH_COOKIE_MAX_AGE,
         path="/api/v1/auth",
     )
@@ -54,7 +63,6 @@ async def login(
     _set_refresh_cookie(response, refresh_token)
     return TokenResponse(
         access_token=access_token,
-        refresh_token=refresh_token,
         expires_in=settings.access_token_expire_minutes * 60,
     )
 
@@ -76,7 +84,6 @@ async def refresh(
     _set_refresh_cookie(response, new_refresh_token)
     return TokenResponse(
         access_token=access_token,
-        refresh_token=new_refresh_token,
         expires_in=settings.access_token_expire_minutes * 60,
     )
 

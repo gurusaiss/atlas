@@ -64,10 +64,16 @@ async def _run_pipeline_async(job_id: str) -> None:
 
         try:
             final_state = await graph.ainvoke(initial_state, config=config)
-        except Exception as exc:
+        except Exception:
+            # Full exception (potentially including internals like an LLM
+            # provider's request/response repr, which some SDKs do not scrub of
+            # Authorization headers) goes to the server log only. job.error_message
+            # is returned to the job's owner over the API, so it must never echo
+            # raw exception text -- that's exactly the surface that could leak the
+            # operator's shared LLM API key to an end user.
             logger.exception("Pipeline failed for job %s", job_id)
             job.status = "failed"
-            job.error_message = str(exc)
+            job.error_message = "Analysis failed due to an internal error. Please try again."
             jobs_total.labels(status="failed").inc()
             await db.commit()
             active_jobs.dec()

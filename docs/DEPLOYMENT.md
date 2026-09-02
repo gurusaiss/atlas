@@ -54,7 +54,15 @@ uvicorn, `Dockerfile.worker` for Celery), selected via each service's
    Environment: Docker. Dockerfile Path: `Dockerfile.worker`. Name it `atlas-celery-worker`.
 3. Set environment variables on both services (from `backend/.env.example`):
    `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `GROQ_API_KEY` (and `GEMINI_API_KEY`
-   / `MISTRAL_API_KEY` once you have them), `CORS_ORIGINS` (your Vercel URL).
+   / `MISTRAL_API_KEY` once you have them), `CORS_ORIGINS` (your Vercel URL), and
+   **`APP_ENV=production`**. That last one is not cosmetic -- `app/config.py`
+   refuses to boot in production with the default `SECRET_KEY`, an empty
+   `CORS_ORIGINS`, or a wildcard `CORS_ORIGINS=*`, but that check only runs when
+   `APP_ENV` is actually set to `production`. Generate a real `SECRET_KEY` with:
+   `python -c "import secrets; print(secrets.token_urlsafe(64))"`. Also set
+   `DEBUG=false` (defaults to `true`, which is fine locally but has no reason
+   to be on in production -- it only controls tracing log verbosity here, not
+   error detail leakage, but there's no reason to leave it on).
 4. Neither service needs a Start Command set -- each Dockerfile's `CMD` handles it.
 5. Migrations run automatically on every `atlas-backend` boot (via
    `entrypoint.sh` running `alembic upgrade head` before uvicorn starts) --

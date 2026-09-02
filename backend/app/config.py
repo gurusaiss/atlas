@@ -42,7 +42,56 @@ class Settings(BaseSettings):
             origin.strip().rstrip("/") for origin in self.cors_origins.split(",") if origin.strip()
         ]
 
+    @property
+    def is_production(self) -> bool:
+        return self.app_env.lower() in ("production", "prod")
+
+
+DEFAULT_SECRET_KEY = "insecure-dev-key-change-me"
+MIN_PRODUCTION_SECRET_KEY_LENGTH = 32
+
+
+class InsecureProductionConfig(RuntimeError):
+    """Raised at startup to refuse booting with a config that would compromise
+    every user's auth if deployed as-is. This is deliberately fatal, not a log
+    warning: this repo is public, so the default SECRET_KEY is not a secret --
+    anyone who reads the source can forge a valid JWT for any user if a real
+    deployment ever ran with it. A crash on boot is a far smaller cost than a
+    silent full auth bypass in production.
+    """
+
+
+def validate_production_settings(settings: "Settings") -> None:
+    if not settings.is_production:
+        return
+
+    problems = []
+    if settings.secret_key == DEFAULT_SECRET_KEY:
+        problems.append(
+            "SECRET_KEY is still the public default from source control -- anyone can forge a JWT for "
+            "any user. Set a real random value (e.g. `python -c \"import secrets; "
+            'print(secrets.token_urlsafe(64))"`).'
+        )
+    elif len(settings.secret_key) < MIN_PRODUCTION_SECRET_KEY_LENGTH:
+        problems.append(
+            f"SECRET_KEY is only {len(settings.secret_key)} characters -- use at least "
+            f"{MIN_PRODUCTION_SECRET_KEY_LENGTH} random characters in production."
+        )
+
+    if not settings.cors_origins_list:
+        problems.append("CORS_ORIGINS is empty in production -- the frontend would not be able to call this API.")
+    if "*" in settings.cors_origins_list:
+        problems.append("CORS_ORIGINS contains '*' in production -- this allows any website to call this API "
+                         "with credentials, defeating the purpose of authentication cookies.")
+
+    if problems:
+        raise InsecureProductionConfig(
+            "Refusing to start with an insecure production configuration:\n- " + "\n- ".join(problems)
+        )
+
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    validate_production_settings(settings)
+    return settings

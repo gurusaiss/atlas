@@ -19,6 +19,13 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds
 MAX_FAILED_LOGIN_ATTEMPTS = 5
 LOCKOUT_DURATION_MINUTES = 15
 
+# A precomputed hash of a value nobody will ever type, used purely to burn the same
+# ~100-300ms of bcrypt CPU time that a real password check would take. Without this,
+# "email not found" (instant) and "wrong password" (one bcrypt verify) are
+# distinguishable by response time alone, letting an attacker enumerate valid emails
+# even though both cases return the identical "Invalid email or password" message.
+_DUMMY_PASSWORD_HASH = pwd_context.hash("this-value-is-never-a-real-password-9f3a7c1e")
+
 
 class AuthError(Exception):
     def __init__(self, message: str, status_code: int = 401):
@@ -86,6 +93,7 @@ async def _issue_refresh_token(db: AsyncSession, user: User) -> str:
 async def authenticate_user(db: AsyncSession, email: str, password: str) -> tuple[User, str, str]:
     user = await db.scalar(select(User).where(User.email == email))
     if user is None:
+        verify_password(password, _DUMMY_PASSWORD_HASH)  # constant-time: see module docstring above
         raise AuthError("Invalid email or password")
 
     now = datetime.now(timezone.utc)

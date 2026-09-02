@@ -1,7 +1,7 @@
 import asyncio
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,7 @@ from app.models.project import Project
 from app.models.report import GuardrailEvent
 from app.models.repository import Repository
 from app.models.user import User
+from app.rate_limit import limiter
 from app.schemas.job import JobCreate, JobResponse
 from app.tasks.analysis_tasks import run_full_analysis
 from app.utils.sse import sse_event
@@ -34,9 +35,17 @@ async def _get_owned_job(db: AsyncSession, job_id: uuid.UUID, user: User) -> Job
 
 
 @router.post("", response_model=JobResponse, status_code=201)
+@limiter.limit("10/hour")
 async def create_job(
-    body: JobCreate, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
+    request: Request,
+    body: JobCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
+    # Each job triggers a real LangGraph pipeline spending real (free-tier, but
+    # rate-limited-upstream) LLM tokens across Gemini/Groq/Mistral. Without a
+    # cap here, one authenticated user scripting this endpoint in a loop could
+    # exhaust the shared free-tier quota for every user in minutes.
     repository = await db.get(Repository, body.repository_id)
     if repository is None:
         raise HTTPException(status_code=404, detail="Repository not found")
