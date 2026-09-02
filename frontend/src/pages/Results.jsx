@@ -18,6 +18,8 @@ import MicroservicesGraph from "../components/MicroservicesGraph.jsx";
 import SecurityFindingCard from "../components/SecurityFindingCard.jsx";
 import CodeViewer from "../components/CodeViewer.jsx";
 import ComplexityHeatmap from "../components/ComplexityHeatmap.jsx";
+import { ErrorCard, SkeletonList, describeError } from "../components/QueryState.jsx";
+import { toast } from "../store/toastStore.js";
 
 const TABS = ["Overview", "Architecture", "Decomposition", "Security", "Tests", "Metrics"];
 
@@ -52,24 +54,69 @@ function SeverityCount({ findings, severity, colorClass }) {
   );
 }
 
+/** Per-tab loading/error handling so a failed fetch never renders identically
+ * to "nothing generated yet" -- each tab's data can fail independently of the
+ * parent job (e.g. one endpoint 500s) and that must be visible, not silent. */
+function TabQueryState({ query, children }) {
+  if (query.isLoading) return <SkeletonList rows={3} />;
+  if (query.isError) return <ErrorCard error={query.error} onRetry={() => query.refetch()} />;
+  return children;
+}
+
 export default function Results() {
   const { jobId } = useParams();
   const [activeTab, setActiveTab] = useState("Overview");
 
-  const { data: job } = useJob(jobId);
-  const { data: docs } = useDocumentation(jobId);
-  const { data: decomposition } = useDecomposition(jobId);
-  const { data: findings } = useSecurityFindings(jobId);
-  const { data: tests } = useTests(jobId);
-  const { data: quality } = useQuality(jobId);
-  const { data: repository } = useRepository(job?.repository_id);
+  const jobQuery = useJob(jobId);
+  const job = jobQuery.data;
+  const docsQuery = useDocumentation(jobId);
+  const decompositionQuery = useDecomposition(jobId);
+  const findingsQuery = useSecurityFindings(jobId);
+  const testsQuery = useTests(jobId);
+  const qualityQuery = useQuality(jobId);
+  const repositoryQuery = useRepository(job?.repository_id);
   const markFalsePositive = useMarkFalsePositive();
+
+  const docs = docsQuery.data;
+  const decomposition = decompositionQuery.data;
+  const findings = findingsQuery.data;
+  const tests = testsQuery.data;
+  const quality = qualityQuery.data;
+  const repository = repositoryQuery.data;
 
   const evaluation = quality?.evaluation || {};
   const architectureDiagram = extractMermaid(docs?.markdown);
 
+  function handleMarkFalsePositive(findingId) {
+    markFalsePositive.mutate(
+      { findingId, reason: "Reviewed by user" },
+      {
+        onSuccess: () => toast.success("Marked as a false positive."),
+        onError: (err) => toast.error(describeError(err)),
+      }
+    );
+  }
+
+  if (jobQuery.isLoading) {
+    return (
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        <h1 className="text-2xl font-semibold mb-1">Analysis Results</h1>
+        <p className="text-gray-500 text-sm mb-6">Loading job…</p>
+        <SkeletonList rows={4} />
+      </div>
+    );
+  }
+
+  if (jobQuery.isError) {
+    return (
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        <ErrorCard error={jobQuery.error} onRetry={() => jobQuery.refetch()} />
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <h1 className="text-2xl font-semibold mb-1">Analysis Results</h1>
       <p className="text-gray-500 text-sm mb-6">Job {jobId}</p>
 
@@ -91,6 +138,12 @@ export default function Results() {
 
       {activeTab === "Overview" && (
         <div className="space-y-6">
+          {(findingsQuery.isError || qualityQuery.isError) && (
+            <div className="text-sm text-atlas-critical bg-red-950/30 border border-red-900 rounded-md p-3">
+              Some overview data failed to load ({[findingsQuery.isError && "findings", qualityQuery.isError && "quality scores"].filter(Boolean).join(", ")}).
+              The numbers below may be incomplete.
+            </div>
+          )}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <SeverityCount findings={findings} severity="critical" colorClass="text-atlas-critical" />
             <SeverityCount findings={findings} severity="high" colorClass="text-orange-400" />
@@ -133,69 +186,82 @@ export default function Results() {
       )}
 
       {activeTab === "Architecture" && (
-        <div className="space-y-4">
-          {architectureDiagram && <MermaidRenderer chart={architectureDiagram} />}
-          <div className="atlas-card p-6 prose prose-invert prose-sm max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{docs?.markdown || "_No documentation generated yet._"}</ReactMarkdown>
+        <TabQueryState query={docsQuery}>
+          <div className="space-y-4">
+            {architectureDiagram && <MermaidRenderer chart={architectureDiagram} />}
+            <div className="atlas-card p-6 prose prose-invert prose-sm max-w-none">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {docs?.markdown || "_No documentation generated yet._"}
+              </ReactMarkdown>
+            </div>
           </div>
-        </div>
+        </TabQueryState>
       )}
 
       {activeTab === "Decomposition" && (
-        <div className="space-y-4">
-          {decomposition?.services ? (
-            <>
-              <MicroservicesGraph services={decomposition.services} />
-              {decomposition.risks?.length > 0 && (
-                <div className="atlas-card p-5">
-                  <h3 className="text-sm font-medium mb-2 text-atlas-warning">Migration Risks</h3>
-                  <ul className="list-disc list-inside text-sm text-gray-400 space-y-1">
-                    {decomposition.risks.map((r, i) => (
-                      <li key={i}>{r}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              <p className="text-sm text-gray-500">
-                Recommended first extraction: <strong className="text-gray-300">{decomposition.recommended_first_extraction}</strong>{" "}
-                &middot; Estimated effort: {decomposition.estimated_total_effort_weeks} weeks
-              </p>
-            </>
-          ) : (
-            <p className="text-gray-500">No decomposition plan generated yet.</p>
-          )}
-        </div>
+        <TabQueryState query={decompositionQuery}>
+          <div className="space-y-4">
+            {decomposition?.services ? (
+              <>
+                <MicroservicesGraph services={decomposition.services} />
+                {decomposition.risks?.length > 0 && (
+                  <div className="atlas-card p-5">
+                    <h3 className="text-sm font-medium mb-2 text-atlas-warning">Migration Risks</h3>
+                    <ul className="list-disc list-inside text-sm text-gray-400 space-y-1">
+                      {decomposition.risks.map((r, i) => (
+                        <li key={i}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <p className="text-sm text-gray-500">
+                  Recommended first extraction:{" "}
+                  <strong className="text-gray-300">{decomposition.recommended_first_extraction}</strong> &middot;
+                  Estimated effort: {decomposition.estimated_total_effort_weeks} weeks
+                </p>
+              </>
+            ) : (
+              <p className="text-gray-500">No decomposition plan generated yet.</p>
+            )}
+          </div>
+        </TabQueryState>
       )}
 
       {activeTab === "Security" && (
-        <div className="space-y-3">
-          {!findings?.length ? (
-            <p className="text-gray-500">No security findings.</p>
-          ) : (
-            findings.map((f) => (
-              <SecurityFindingCard
-                key={f.id || f.title}
-                finding={f}
-                onMarkFalsePositive={
-                  f.id ? (id) => markFalsePositive.mutate({ findingId: id, reason: "Reviewed by user" }) : undefined
-                }
-              />
-            ))
-          )}
-        </div>
+        <TabQueryState query={findingsQuery}>
+          <div className="space-y-3">
+            {!findings?.length ? (
+              <p className="text-gray-500">No security findings.</p>
+            ) : (
+              findings.map((f) => (
+                <SecurityFindingCard
+                  key={f.id || f.title}
+                  finding={f}
+                  onMarkFalsePositive={f.id ? handleMarkFalsePositive : undefined}
+                />
+              ))
+            )}
+          </div>
+        </TabQueryState>
       )}
 
       {activeTab === "Tests" && (
-        <div className="space-y-4">
-          {!tests?.length ? (
-            <p className="text-gray-500">No tests generated yet.</p>
-          ) : (
-            tests.map((t) => <TestFileViewer key={t.test_file} jobId={jobId} test={t} />)
-          )}
-        </div>
+        <TabQueryState query={testsQuery}>
+          <div className="space-y-4">
+            {!tests?.length ? (
+              <p className="text-gray-500">No tests generated yet.</p>
+            ) : (
+              tests.map((t) => <TestFileViewer key={t.test_file} jobId={jobId} test={t} />)
+            )}
+          </div>
+        </TabQueryState>
       )}
 
-      {activeTab === "Metrics" && <ComplexityHeatmap files={repository?.code_files || []} />}
+      {activeTab === "Metrics" && (
+        <TabQueryState query={repositoryQuery}>
+          <ComplexityHeatmap files={repository?.code_files || []} />
+        </TabQueryState>
+      )}
     </div>
   );
 }

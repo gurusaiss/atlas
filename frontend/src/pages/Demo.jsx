@@ -3,9 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { Coffee, Loader2, ShieldAlert } from "lucide-react";
 import { useDemoRepositories, useLoadDemo } from "../hooks/useAtlas.js";
 import { useAuth } from "../hooks/useAuth.js";
+import { ErrorCard, SkeletonCards, describeError } from "../components/QueryState.jsx";
 
 export default function Demo() {
-  const { data: repos, isLoading } = useDemoRepositories();
+  const demoQuery = useDemoRepositories();
+  const repos = demoQuery.data;
   const loadDemo = useLoadDemo();
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -28,8 +30,9 @@ export default function Demo() {
       navigate(`/jobs/${result.job_id}/results`);
     } catch (err) {
       setError(
-        err.response?.data?.detail ||
-          "Could not load demo data. Has seed_demo_data.py been run against this database?"
+        err.response?.status === 404
+          ? "Could not load demo data. Has seed_demo_data.py been run against this database?"
+          : describeError(err)
       );
     } finally {
       setLoadingRepo(null);
@@ -50,8 +53,10 @@ export default function Demo() {
 
       {error && <p className="text-sm text-atlas-critical mb-4">{error}</p>}
 
-      {isLoading ? (
-        <p className="text-gray-500">Loading demo repositories...</p>
+      {demoQuery.isLoading ? (
+        <SkeletonCards count={3} />
+      ) : demoQuery.isError ? (
+        <ErrorCard error={demoQuery.error} onRetry={() => demoQuery.refetch()} />
       ) : !repos?.length ? (
         <div className="atlas-card p-8 text-center text-gray-500">
           No demo data seeded yet. Run <code className="text-gray-300">python seed_demo_data.py</code> from the

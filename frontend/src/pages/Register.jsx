@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.js";
+import { describeError } from "../components/QueryState.jsx";
 
 export default function Register() {
   const { register, login } = useAuth();
@@ -20,7 +21,7 @@ export default function Register() {
       await login(email, password);
       navigate("/dashboard");
     } catch (err) {
-      setError(err.response?.data?.detail || "Registration failed");
+      setError(err.response?.status === 409 ? "An account with this email already exists." : describeError(err));
     } finally {
       setSubmitting(false);
     }

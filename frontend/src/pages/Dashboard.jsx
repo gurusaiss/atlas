@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { FolderPlus, FolderGit2 } from "lucide-react";
+import { FolderPlus, FolderGit2, ListTodo } from "lucide-react";
 import { useCreateProject, useJobs, useProjects } from "../hooks/useAtlas.js";
+import { QueryState, describeError } from "../components/QueryState.jsx";
+import { toast } from "../store/toastStore.js";
 
 const STATUS_COLORS = {
   queued: "bg-gray-700 text-gray-300",
@@ -13,8 +15,10 @@ const STATUS_COLORS = {
 };
 
 export default function Dashboard() {
-  const { data: projects, isLoading } = useProjects();
-  const { data: jobs } = useJobs();
+  const projectsQuery = useProjects();
+  const jobsQuery = useJobs();
+  const projects = projectsQuery.data;
+  const jobs = jobsQuery.data;
   const createProject = useCreateProject();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -23,10 +27,15 @@ export default function Dashboard() {
   async function handleCreate(e) {
     e.preventDefault();
     if (!name.trim()) return;
-    await createProject.mutateAsync({ name, description });
-    setName("");
-    setDescription("");
-    setShowForm(false);
+    try {
+      await createProject.mutateAsync({ name, description });
+      toast.success(`Project “${name.trim()}” created.`);
+      setName("");
+      setDescription("");
+      setShowForm(false);
+    } catch (err) {
+      toast.error(describeError(err));
+    }
   }
 
   return (
@@ -72,52 +81,50 @@ export default function Dashboard() {
       )}
 
       <h2 className="text-sm uppercase tracking-wide text-gray-500 mb-3">Projects</h2>
-      {isLoading ? (
-        <p className="text-gray-500">Loading...</p>
-      ) : !projects?.length ? (
-        <div className="atlas-card p-10 text-center text-gray-500">
-          <FolderGit2 className="w-8 h-8 mx-auto mb-3 opacity-50" />
-          No projects yet. Create one to upload a repository for analysis.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-          {projects.map((p) => (
-            <Link
-              key={p.id}
-              to={`/projects/${p.id}`}
-              className="atlas-card p-5 hover:border-atlas-accent transition-colors"
-            >
-              <h3 className="font-medium mb-1">{p.name}</h3>
-              <p className="text-sm text-gray-500 line-clamp-2">{p.description || "No description"}</p>
-              {p.is_demo && <span className="atlas-badge bg-atlas-accent/20 text-atlas-accent mt-3">Demo</span>}
-            </Link>
-          ))}
-        </div>
-      )}
+      <div className="mb-10">
+        <QueryState
+          query={projectsQuery}
+          emptyIcon={FolderGit2}
+          emptyMessage="No projects yet. Create one to upload a repository for analysis."
+          skeletonRows={3}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {projects?.map((p) => (
+              <Link
+                key={p.id}
+                to={`/projects/${p.id}`}
+                className="atlas-card p-5 hover:border-atlas-accent transition-colors"
+              >
+                <h3 className="font-medium mb-1">{p.name}</h3>
+                <p className="text-sm text-gray-500 line-clamp-2">{p.description || "No description"}</p>
+                {p.is_demo && <span className="atlas-badge bg-atlas-accent/20 text-atlas-accent mt-3">Demo</span>}
+              </Link>
+            ))}
+          </div>
+        </QueryState>
+      </div>
 
       <h2 className="text-sm uppercase tracking-wide text-gray-500 mb-3">Recent Jobs</h2>
-      {!jobs?.length ? (
-        <p className="text-gray-500 text-sm">No jobs yet.</p>
-      ) : (
+      <QueryState query={jobsQuery} emptyIcon={ListTodo} emptyMessage="No analysis jobs yet." skeletonRows={2}>
         <div className="atlas-card divide-y divide-atlas-border">
-          {jobs.slice(0, 10).map((job) => (
+          {jobs?.slice(0, 10).map((job) => (
             <Link
               key={job.id}
               to={`/jobs/${job.id}`}
-              className="flex items-center justify-between px-5 py-3 hover:bg-atlas-bg/50"
+              className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-atlas-bg/50"
             >
-              <div>
-                <p className="text-sm font-medium">{job.job_type}</p>
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{job.job_type}</p>
                 <p className="text-xs text-gray-500">{new Date(job.created_at).toLocaleString()}</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 shrink-0">
                 <span className="text-xs text-gray-500">{job.progress}%</span>
                 <span className={`atlas-badge ${STATUS_COLORS[job.status] || "bg-gray-800"}`}>{job.status}</span>
               </div>
             </Link>
           ))}
         </div>
-      )}
+      </QueryState>
     </div>
   );
 }

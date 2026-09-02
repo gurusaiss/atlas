@@ -3,31 +3,36 @@ import { useParams, Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useRepository, useCallGraph } from "../hooks/useAtlas.js";
 import CallGraphViewer from "../components/CallGraphViewer.jsx";
+import { ErrorCard, SkeletonList } from "../components/QueryState.jsx";
 
 export default function CallGraph() {
   const { repositoryId } = useParams();
   const { data: repository } = useRepository(repositoryId);
-  const { data: graph, isLoading } = useCallGraph(repositoryId);
+  const graphQuery = useCallGraph(repositoryId);
+  const graph = graphQuery.data;
   const [highCouplingOnly, setHighCouplingOnly] = useState(false);
   const [entryPointsOnly, setEntryPointsOnly] = useState(false);
 
   const nodes = entryPointsOnly ? (graph?.nodes || []).filter((n) => n.is_entry_point) : graph?.nodes || [];
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8">
-      <Link to={repository ? `/projects/${repository.project_id}` : "/dashboard"} className="text-sm text-gray-500 hover:text-gray-300 flex items-center gap-1 mb-4">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+      <Link
+        to={repository ? `/projects/${repository.project_id}` : "/dashboard"}
+        className="text-sm text-gray-500 hover:text-gray-300 flex items-center gap-1 mb-4"
+      >
         <ArrowLeft className="w-3.5 h-3.5" />
         Back
       </Link>
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-semibold">{repository?.name || "Repository"} -- Call Graph</h1>
+          <h1 className="text-2xl font-semibold">{repository?.name || "Repository"} — Call Graph</h1>
           <p className="text-sm text-gray-500">
             Force-directed view of cross-file function calls. Node size = LOC, color = cyclomatic complexity.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <button
             onClick={() => setHighCouplingOnly((v) => !v)}
             className={`atlas-badge cursor-pointer ${highCouplingOnly ? "bg-amber-900 text-amber-300" : "bg-gray-800 text-gray-400"}`}
@@ -43,8 +48,10 @@ export default function CallGraph() {
         </div>
       </div>
 
-      {isLoading ? (
-        <p className="text-gray-500">Loading call graph...</p>
+      {graphQuery.isLoading ? (
+        <SkeletonList rows={3} />
+      ) : graphQuery.isError ? (
+        <ErrorCard error={graphQuery.error} onRetry={() => graphQuery.refetch()} />
       ) : (
         <CallGraphViewer nodes={nodes} edges={graph?.edges || []} filterHighCouplingOnly={highCouplingOnly} />
       )}

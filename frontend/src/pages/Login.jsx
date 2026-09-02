@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.js";
+import { describeError } from "../components/QueryState.jsx";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = location.state?.from || "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -16,9 +19,9 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(email, password);
-      navigate("/dashboard");
+      navigate(redirectTo, { replace: true });
     } catch (err) {
-      setError(err.response?.data?.detail || "Login failed");
+      setError(describeError(err));
     } finally {
       setSubmitting(false);
     }
@@ -29,9 +32,13 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login("demo@atlas.ai", "DemoAtlas2024!");
-      navigate("/dashboard");
+      navigate(redirectTo, { replace: true });
     } catch (err) {
-      setError(err.response?.data?.detail || "Demo login failed -- has seed_demo_data.py been run?");
+      if (err.response?.status === 401) {
+        setError("Demo login failed — has seed_demo_data.py been run against this database?");
+      } else {
+        setError(describeError(err));
+      }
     } finally {
       setSubmitting(false);
     }

@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { Github, UploadCloud } from "lucide-react";
 import { useAddGithubRepository, useUploadRepository } from "../hooks/useAtlas.js";
+import { describeError } from "./QueryState.jsx";
+import { toast } from "../store/toastStore.js";
+
+const MAX_UPLOAD_MB = 50;
+const GITHUB_URL_PATTERN = /^https?:\/\/(www\.)?github\.com\/[^/\s]+\/[^/\s]+\/?$/i;
 
 export default function RepoUploader({ projectId }) {
   const [mode, setMode] = useState("upload");
@@ -14,10 +19,26 @@ export default function RepoUploader({ projectId }) {
     const file = e.target.files?.[0];
     if (!file) return;
     setError("");
+
+    // Validate before spending bandwidth on a doomed upload -- the backend
+    // enforces the same limits, but failing fast here is a much better UX for
+    // an obviously-wrong file than waiting on a multi-MB round trip to 413.
+    if (!file.name.toLowerCase().endsWith(".zip")) {
+      setError("Only .zip files are supported.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      setError(`File is ${(file.size / (1024 * 1024)).toFixed(1)}MB — max is ${MAX_UPLOAD_MB}MB.`);
+      e.target.value = "";
+      return;
+    }
+
     try {
       await upload.mutateAsync(file);
+      toast.success(`${file.name} uploaded — parsing will start automatically.`);
     } catch (err) {
-      setError(err.response?.data?.detail || "Upload failed");
+      setError(describeError(err));
     } finally {
       e.target.value = "";
     }
@@ -26,11 +47,18 @@ export default function RepoUploader({ projectId }) {
   async function handleGithubSubmit(e) {
     e.preventDefault();
     setError("");
+
+    if (!GITHUB_URL_PATTERN.test(githubUrl.trim())) {
+      setError("Enter a public GitHub URL like https://github.com/owner/repo");
+      return;
+    }
+
     try {
-      await addGithub.mutateAsync({ githubUrl, branch });
+      await addGithub.mutateAsync({ githubUrl: githubUrl.trim(), branch: branch.trim() || "main" });
+      toast.success("Repository cloned — parsing will start automatically.");
       setGithubUrl("");
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to clone repository");
+      setError(describeError(err));
     }
   }
 
