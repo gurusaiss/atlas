@@ -179,6 +179,54 @@ export function useMarkFalsePositive() {
   });
 }
 
+export function useDeleteProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (projectId) => (await apiClient.delete(`/projects/${projectId}`)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["projects"] }),
+  });
+}
+
+export function useDeleteRepository(projectId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (repositoryId) => (await apiClient.delete(`/repositories/${repositoryId}`)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["repositories", projectId] }),
+  });
+}
+
+export function useCancelJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (jobId) => (await apiClient.delete(`/jobs/${jobId}`)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["jobs"] }),
+  });
+}
+
+export function useAnalyticsDashboard() {
+  return useQuery({
+    queryKey: ["analytics-dashboard"],
+    queryFn: async () => (await apiClient.get("/analytics/dashboard")).data,
+    staleTime: 60_000,
+  });
+}
+
+export function useAnalyticsGuardrails() {
+  return useQuery({
+    queryKey: ["analytics-guardrails"],
+    queryFn: async () => (await apiClient.get("/analytics/guardrails")).data,
+    staleTime: 60_000,
+  });
+}
+
+export function useAnalyticsTokens() {
+  return useQuery({
+    queryKey: ["analytics-tokens"],
+    queryFn: async () => (await apiClient.get("/analytics/tokens")).data,
+    staleTime: 60_000,
+  });
+}
+
 export function useDemoRepositories() {
   return useQuery({
     queryKey: ["demo-repositories"],

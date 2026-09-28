@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { FolderPlus, FolderGit2, ListTodo } from "lucide-react";
-import { useCreateProject, useJobs, useProjects } from "../hooks/useAtlas.js";
+import { FolderPlus, FolderGit2, ListTodo, Trash2 } from "lucide-react";
+import { useCreateProject, useDeleteProject, useJobs, useProjects } from "../hooks/useAtlas.js";
 import { QueryState, describeError } from "../components/QueryState.jsx";
 import { toast } from "../store/toastStore.js";
 
@@ -20,6 +20,7 @@ export default function Dashboard() {
   const projects = projectsQuery.data;
   const jobs = jobsQuery.data;
   const createProject = useCreateProject();
+  const deleteProject = useDeleteProject();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -30,9 +31,20 @@ export default function Dashboard() {
     try {
       await createProject.mutateAsync({ name, description });
       toast.success(`Project “${name.trim()}” created.`);
-      setName("");
-      setDescription("");
+      setName(“”);
+      setDescription(“”);
       setShowForm(false);
+    } catch (err) {
+      toast.error(describeError(err));
+    }
+  }
+
+  async function handleDeleteProject(p, event) {
+    event.preventDefault(); // don't navigate into the project
+    if (!window.confirm(`Delete project “${p.name}”? This permanently removes all repositories, jobs, and findings.`)) return;
+    try {
+      await deleteProject.mutateAsync(p.id);
+      toast.success(`Project “${p.name}” deleted.`);
     } catch (err) {
       toast.error(describeError(err));
     }
@@ -93,11 +105,20 @@ export default function Dashboard() {
               <Link
                 key={p.id}
                 to={`/projects/${p.id}`}
-                className="atlas-card p-5 hover:border-atlas-accent transition-colors"
+                className="atlas-card p-5 hover:border-atlas-accent transition-colors group relative"
               >
-                <h3 className="font-medium mb-1">{p.name}</h3>
+                <h3 className="font-medium mb-1 pr-7">{p.name}</h3>
                 <p className="text-sm text-gray-500 line-clamp-2">{p.description || "No description"}</p>
                 {p.is_demo && <span className="atlas-badge bg-atlas-accent/20 text-atlas-accent mt-3">Demo</span>}
+                {!p.is_demo && (
+                  <button
+                    onClick={(e) => handleDeleteProject(p, e)}
+                    title="Delete project"
+                    className="absolute top-4 right-4 p-1 rounded text-gray-600 hover:text-atlas-critical hover:bg-red-950/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </Link>
             ))}
           </div>

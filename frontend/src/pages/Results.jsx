@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
+import { Download, FileText, ArrowLeft, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -13,6 +14,9 @@ import {
   useTestFile,
   useTests,
 } from "../hooks/useAtlas.js";
+import { API_BASE_PATH } from "../api/client.js";
+import { useAtlasStore } from "../store/atlasStore.js";
+
 import MermaidRenderer from "../components/MermaidRenderer.jsx";
 import MicroservicesGraph from "../components/MicroservicesGraph.jsx";
 import SecurityFindingCard from "../components/SecurityFindingCard.jsx";
@@ -20,6 +24,22 @@ import CodeViewer from "../components/CodeViewer.jsx";
 import ComplexityHeatmap from "../components/ComplexityHeatmap.jsx";
 import { ErrorCard, SkeletonList, describeError } from "../components/QueryState.jsx";
 import { toast } from "../store/toastStore.js";
+
+async function downloadWithAuth(url, filename) {
+  const token = useAtlasStore.getState().accessToken;
+  const resp = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: "include",
+  });
+  if (!resp.ok) throw new Error(`Download failed (${resp.status})`);
+  const blob = await resp.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(objectUrl);
+}
 
 const TABS = ["Overview", "Architecture", "Decomposition", "Security", "Tests", "Metrics"];
 
@@ -74,8 +94,27 @@ export default function Results() {
   const findingsQuery = useSecurityFindings(jobId);
   const testsQuery = useTests(jobId);
   const qualityQuery = useQuality(jobId);
-  const repositoryQuery = useRepository(job?.repository_id);
+  // Only enable once job is loaded so repositoryId is defined; avoids a false
+  // "No file metrics available" flash while the job query is still in-flight.
+  const repositoryQuery = useRepository(job?.repository_id || null);
   const markFalsePositive = useMarkFalsePositive();
+  const [downloading, setDownloading] = useState(null);
+
+  async function handleDownload(format) {
+    const ext = format === "pdf" ? "pdf" : "md";
+    const mime = format === "pdf" ? "application/pdf" : "text/markdown";
+    setDownloading(format);
+    try {
+      await downloadWithAuth(
+        `${API_BASE_PATH}/reports/${jobId}/${format}`,
+        `atlas_report_${jobId}.${ext}`
+      );
+    } catch {
+      // silent — browser already shows nothing happened
+    } finally {
+      setDownloading(null);
+    }
+  }
 
   const docs = docsQuery.data;
   const decomposition = decompositionQuery.data;
@@ -117,8 +156,38 @@ export default function Results() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-      <h1 className="text-2xl font-semibold mb-1">Analysis Results</h1>
-      <p className="text-gray-500 text-sm mb-6">Job {jobId}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <div>
+          {job?.project_id && (
+            <Link to={`/projects/${job.project_id}`} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 mb-2">
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Back to project
+            </Link>
+          )}
+          <h1 className="text-2xl font-semibold mb-0.5">Analysis Results</h1>
+          <p className="text-gray-500 text-sm">Job {jobId}</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => handleDownload("markdown")}
+            disabled={!!downloading}
+            className="atlas-btn-secondary text-sm flex items-center gap-1.5"
+            title="Download Markdown report"
+          >
+            {downloading === "markdown" ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+            .md
+          </button>
+          <button
+            onClick={() => handleDownload("pdf")}
+            disabled={!!downloading}
+            className="atlas-btn-secondary text-sm flex items-center gap-1.5"
+            title="Download PDF report"
+          >
+            {downloading === "pdf" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            PDF
+          </button>
+        </div>
+      </div>
 
       <div className="flex gap-1 border-b border-atlas-border mb-6 overflow-x-auto">
         {TABS.map((tab) => (

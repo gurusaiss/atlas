@@ -27,14 +27,17 @@ export function useSSE(jobId, onEvent) {
     if (!jobId) return undefined;
 
     const controller = new AbortController();
-    const token = useAtlasStore.getState().accessToken;
     let attempt = 0;
     let stopped = false;
     let sawTerminalEvent = false;
 
     async function connectOnce() {
+      // Read fresh token on every attempt — the 15-minute access token may have
+      // rotated since the last connect (or since component mount), so capturing
+      // it once at the top of the effect would produce auth failures on reconnect.
+      const currentToken = useAtlasStore.getState().accessToken;
       const response = await fetch(`${API_BASE_PATH}/jobs/${jobId}/stream`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {},
         credentials: "include",
         signal: controller.signal,
       });

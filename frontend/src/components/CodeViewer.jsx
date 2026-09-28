@@ -1,6 +1,26 @@
 import Editor from "@monaco-editor/react";
 
-const LANGUAGE_MAP = { py: "python", java: "java", js: "javascript", jsx: "javascript" };
+const LANGUAGE_MAP = {
+  py: "python",
+  java: "java",
+  js: "javascript",
+  jsx: "javascript",
+  ts: "typescript",
+  tsx: "typescript",
+  go: "go",
+  rb: "ruby",
+  rs: "rust",
+  c: "c",
+  cpp: "cpp",
+  cs: "csharp",
+  php: "php",
+  sh: "shell",
+  yaml: "yaml",
+  yml: "yaml",
+  json: "json",
+  md: "markdown",
+  sql: "sql",
+};
 
 function inferLanguage(filePath = "") {
   const ext = filePath.split(".").pop();

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { Play, GitBranch, Loader2 } from "lucide-react";
-import { useProject, useRepositories, useCreateJob } from "../hooks/useAtlas.js";
+import { Play, GitBranch, Loader2, Trash2 } from "lucide-react";
+import { useProject, useRepositories, useCreateJob, useDeleteRepository } from "../hooks/useAtlas.js";
 import { ErrorCard, QueryState, describeError } from "../components/QueryState.jsx";
 import { toast } from "../store/toastStore.js";
 import RepoUploader from "../components/RepoUploader.jsx";
@@ -13,7 +13,10 @@ const STATUS_COLORS = {
   error: "bg-red-950 text-atlas-critical",
 };
 
-const ANALYZABLE_STATUSES = new Set(["ready", "pending"]);
+// Only "ready" repos can be analyzed — "pending" means the ZIP was just
+// uploaded but the parser hasn't run yet (it runs as the first pipeline node).
+// Allowing "pending" would start a job before any code files exist in the DB.
+const ANALYZABLE_STATUSES = new Set(["ready"]);
 
 export default function ProjectView() {
   const { projectId } = useParams();
@@ -23,6 +26,7 @@ export default function ProjectView() {
   const project = projectQuery.data;
   const repositories = repositoriesQuery.data;
   const createJob = useCreateJob();
+  const deleteRepository = useDeleteRepository(projectId);
   const [analyzingRepoId, setAnalyzingRepoId] = useState(null);
 
   async function handleAnalyze(repositoryId) {
@@ -33,6 +37,16 @@ export default function ProjectView() {
     } catch (err) {
       toast.error(describeError(err));
       setAnalyzingRepoId(null);
+    }
+  }
+
+  async function handleDeleteRepository(repo) {
+    if (!window.confirm(`Delete "${repo.name}"? This cannot be undone.`)) return;
+    try {
+      await deleteRepository.mutateAsync(repo.id);
+      toast.success(`"${repo.name}" deleted.`);
+    } catch (err) {
+      toast.error(describeError(err));
     }
   }
 
@@ -110,6 +124,14 @@ export default function ProjectView() {
                           <Play className="w-3.5 h-3.5" />
                         )}
                         {isAnalyzing ? "Starting…" : "Analyze"}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRepository(repo)}
+                        disabled={deleteRepository.isPending}
+                        title="Delete repository"
+                        className="p-1.5 rounded text-gray-500 hover:text-atlas-critical hover:bg-red-950/30 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>

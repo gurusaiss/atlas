@@ -13,6 +13,7 @@ import JobMonitor from "./pages/JobMonitor.jsx";
 import Results from "./pages/Results.jsx";
 import Demo from "./pages/Demo.jsx";
 import CallGraph from "./pages/CallGraph.jsx";
+import Analytics from "./pages/Analytics.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
 export default function App() {
@@ -64,6 +65,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <CallGraph />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <ProtectedRoute>
+                  <Analytics />
                 </ProtectedRoute>
               }
             />

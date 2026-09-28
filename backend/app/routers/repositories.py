@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
@@ -96,7 +97,7 @@ async def add_github_repository(
     user: User = Depends(get_current_user),
 ):
     await _get_owned_project(db, project_id, user)
-    clone_dir, commit_sha = clone_github_repo(body.github_url, body.branch)
+    clone_dir, commit_sha = await asyncio.to_thread(clone_github_repo, body.github_url, body.branch)
 
     repo_name = body.github_url.rstrip("/").rsplit("/", 1)[-1].removesuffix(".git")
     repository = Repository(

@@ -35,7 +35,7 @@ from app.static_analysis.semgrep_runner import run_semgrep
 
 logger = logging.getLogger("atlas.agents.graph")
 
-SOURCE_EXTENSIONS = (".py", ".java", ".js", ".jsx")
+SOURCE_EXTENSIONS = (".py", ".java", ".js", ".jsx", ".ts", ".tsx")
 IGNORED_DIRS = {".git", "node_modules", "venv", ".venv", "__pycache__", "dist", "build", "target"}
 
 

@@ -48,6 +48,7 @@ async def _run_pipeline_async(job_id: str) -> None:
             return
 
         job.status = "running"
+        job.started_at = datetime.now(timezone.utc)
         await db.commit()
         active_jobs.inc()
 
@@ -62,8 +63,42 @@ async def _run_pipeline_async(job_id: str) -> None:
 
         graph, config = build_graph_for_job(str(job.id))
 
+        # Node → (human-readable label, % progress) for real-time SSE updates.
+        # Parallel nodes share the 40-65 range; each one completing advances
+        # the counter so the bar moves even while others are still running.
+        _NODE_PROGRESS: dict[str, tuple[str, int]] = {
+            "parse_repository": ("Parsing source files", 10),
+            "embed_chunks": ("Embedding code chunks", 20),
+            "static_analysis": ("Running static analysis", 25),
+            "planner": ("Planning analysis", 35),
+            "documentation": ("Generating documentation", 47),
+            "decomposition": ("Decomposing services", 55),
+            "test_generator": ("Generating tests", 62),
+            "security": ("Security analysis", 70),
+            "critic": ("Critic review", 80),
+            "evaluator": ("Evaluating quality", 90),
+            "generate_report": ("Generating report", 95),
+        }
+
         try:
-            final_state = await graph.ainvoke(initial_state, config=config)
+            final_state = None
+            async for chunk in graph.astream(initial_state, config=config, stream_mode="updates"):
+                node_name = next(iter(chunk), None)
+                if node_name and node_name in _NODE_PROGRESS:
+                    label, pct = _NODE_PROGRESS[node_name]
+                    try:
+                        async with AsyncSessionLocal() as pdb:
+                            pjob = await pdb.get(Job, job_id)
+                            if pjob:
+                                pjob.current_agent = label
+                                pjob.progress = pct
+                                await pdb.commit()
+                    except Exception:
+                        logger.warning("Progress update failed for job %s node %s", job_id, node_name)
+
+            # After all nodes have run, read the final merged state from the checkpoint.
+            state_snapshot = await graph.aget_state(config)
+            final_state = state_snapshot.values
         except Exception:
             # Full exception (potentially including internals like an LLM
             # provider's request/response repr, which some SDKs do not scrub of
@@ -73,6 +108,7 @@ async def _run_pipeline_async(job_id: str) -> None:
             # operator's shared LLM API key to an end user.
             logger.exception("Pipeline failed for job %s", job_id)
             job.status = "failed"
+            job.completed_at = datetime.now(timezone.utc)
             job.error_message = "Analysis failed due to an internal error. Please try again."
             jobs_total.labels(status="failed").inc()
             await db.commit()
@@ -83,8 +119,16 @@ async def _run_pipeline_async(job_id: str) -> None:
 
         job.status = "completed"
         job.progress = 100
+        job.completed_at = datetime.now(timezone.utc)
         for model, tokens in final_state.get("token_usage", {}).items():
             job.total_tokens_used += tokens
+            model_lower = model.lower()
+            if "gemini" in model_lower:
+                job.gemini_tokens += tokens
+            elif "mistral" in model_lower or "codestral" in model_lower:
+                job.mistral_tokens += tokens
+            else:
+                job.groq_tokens += tokens
             llm_tokens_total.labels(model=model, agent="pipeline").inc(tokens)
         job.rate_limit_hits += final_state.get("rate_limit_hits", 0)
         rate_limit_hits_total.labels(model="all").inc(final_state.get("rate_limit_hits", 0))

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { LayoutDashboard, LogOut, Menu, Sparkles, X } from "lucide-react";
+import { BarChart2, LayoutDashboard, LogOut, Menu, Sparkles, X } from "lucide-react";
 import { useAuth } from "../hooks/useAuth.js";
 
 export default function NavBar() {
@@ -23,6 +23,16 @@ export default function NavBar() {
       >
         <LayoutDashboard className="w-4 h-4" aria-hidden="true" />
         Dashboard
+      </button>
+      <button
+        onClick={() => {
+          closeMenu();
+          navigate("/analytics");
+        }}
+        className="flex items-center gap-1 text-gray-400 hover:text-gray-100"
+      >
+        <BarChart2 className="w-4 h-4" aria-hidden="true" />
+        Analytics
       </button>
       {/* Email is the least important item, so it's the first thing dropped on narrow screens. */}
       <span className="text-gray-500 truncate max-w-[12rem] hidden lg:inline">{user?.email}</span>

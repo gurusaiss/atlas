@@ -106,8 +106,12 @@ async def _job_event_stream(job_id: uuid.UUID):
     seen_guardrail_event_ids: set[uuid.UUID] = set()
     elapsed = 0.0
 
-    while elapsed < SSE_MAX_DURATION_SECONDS:
-        async with AsyncSessionLocal() as db:
+    async with AsyncSessionLocal() as db:
+        while elapsed < SSE_MAX_DURATION_SECONDS:
+            # expire_all() forces SQLAlchemy to reload from the DB on next access
+            # rather than serving stale cached values from the previous poll.
+            db.expire_all()
+
             job = await db.get(Job, job_id)
             if job is None:
                 yield sse_event("error", {"message": "Job not found"})
@@ -166,8 +170,8 @@ async def _job_event_stream(job_id: uuid.UUID):
                 yield sse_event("error", {"message": job.error_message or job.status})
                 return
 
-        await asyncio.sleep(SSE_POLL_INTERVAL_SECONDS)
-        elapsed += SSE_POLL_INTERVAL_SECONDS
+            await asyncio.sleep(SSE_POLL_INTERVAL_SECONDS)
+            elapsed += SSE_POLL_INTERVAL_SECONDS
 
     yield sse_event("error", {"message": "Stream timed out waiting for job completion"})
 

@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { AlertTriangle, Loader2, WifiOff } from "lucide-react";
-import { useJob } from "../hooks/useAtlas.js";
+import { AlertTriangle, ArrowLeft, Loader2, X, WifiOff } from "lucide-react";
+import { useCancelJob, useJob } from "../hooks/useAtlas.js";
 import { useSSE } from "../hooks/useSSE.js";
-import { ErrorCard } from "../components/QueryState.jsx";
+import { ErrorCard, describeError } from "../components/QueryState.jsx";
 import AgentProgressCard from "../components/AgentProgressCard.jsx";
 import TokenUsageMeter from "../components/TokenUsageMeter.jsx";
 import GuardrailEventFeed from "../components/GuardrailEventFeed.jsx";
+import { toast } from "../store/toastStore.js";
 
 const AGENT_ORDER = ["planner", "documentation", "decomposition", "test_generator", "security", "critic", "evaluator"];
 
@@ -15,6 +16,7 @@ export default function JobMonitor() {
   const navigate = useNavigate();
   const jobQuery = useJob(jobId, { refetchInterval: 5000 });
   const job = jobQuery.data;
+  const cancelJob = useCancelJob();
 
   const [agentStatuses, setAgentStatuses] = useState({});
   const [tokens, setTokens] = useState(0);
@@ -49,20 +51,50 @@ export default function JobMonitor() {
     );
   }
 
+  async function handleCancel() {
+    if (!window.confirm("Cancel this job? The analysis will stop and cannot be resumed.")) return;
+    try {
+      await cancelJob.mutateAsync(jobId);
+      toast.success("Job cancelled.");
+      if (job?.project_id) navigate(`/projects/${job.project_id}`);
+    } catch (err) {
+      toast.error(describeError(err));
+    }
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      {job?.project_id && (
+        <Link to={`/projects/${job.project_id}`} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 mb-4">
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Back to project
+        </Link>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
         <h1 className="text-2xl font-semibold">Analysis Job</h1>
-        {isDone && (
-          <button onClick={() => navigate(`/jobs/${jobId}/results`)} className="atlas-btn-primary">
-            View Results
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {!isDone && !isFailed && (
+            <button
+              onClick={handleCancel}
+              disabled={cancelJob.isPending}
+              className="atlas-btn-secondary text-sm flex items-center gap-1.5 border-red-900/60 text-atlas-critical hover:bg-red-950/30"
+            >
+              <X className="w-3.5 h-3.5" />
+              Cancel
+            </button>
+          )}
+          {isDone && (
+            <button onClick={() => navigate(`/jobs/${jobId}/results`)} className="atlas-btn-primary">
+              View Results
+            </button>
+          )}
+        </div>
       </div>
 
-      {job?.repository_id && (
+      {job && (
         <p className="text-sm text-gray-500 mb-6">
           Status: <span className="text-gray-300">{job.status}</span> &middot; {job.progress ?? 0}% complete
+          {job.current_agent && !isDone && <> &middot; <span className="text-gray-400">{job.current_agent}</span></>}
         </p>
       )}
 

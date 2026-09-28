@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from sqlalchemy import Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -87,14 +87,14 @@ async def token_analytics(db: AsyncSession = Depends(get_db), user: User = Depen
     rows = (
         await db.execute(
             select(
-                func.date(Job.created_at),
+                cast(Job.created_at, Date).label("day"),
                 func.sum(Job.gemini_tokens),
                 func.sum(Job.groq_tokens),
                 func.sum(Job.mistral_tokens),
             )
             .where(Job.project_id.in_(select(project_ids_subq)))
-            .group_by(func.date(Job.created_at))
-            .order_by(func.date(Job.created_at))
+            .group_by(cast(Job.created_at, Date))
+            .order_by(cast(Job.created_at, Date))
         )
     ).all()
 

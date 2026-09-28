@@ -8,7 +8,7 @@ celery_app = Celery(
     "atlas",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["app.tasks.analysis_tasks"],  # Phase 4 adds app.tasks.report_tasks
+    include=["app.tasks.analysis_tasks"],
 )
 
 celery_app.conf.update(

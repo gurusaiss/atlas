@@ -48,7 +48,14 @@ class Settings(BaseSettings):
 
 
 DEFAULT_SECRET_KEY = "insecure-dev-key-change-me"
+_KNOWN_PUBLIC_SECRET_KEYS = {
+    DEFAULT_SECRET_KEY,
+    "change-me-to-a-random-64-char-string-before-any-real-deployment",
+}
 MIN_PRODUCTION_SECRET_KEY_LENGTH = 32
+_DEV_DATABASE_URLS = {
+    "postgresql+asyncpg://atlas:atlas_dev_password@localhost:5432/atlas",
+}
 
 
 class InsecureProductionConfig(RuntimeError):
@@ -66,9 +73,9 @@ def validate_production_settings(settings: "Settings") -> None:
         return
 
     problems = []
-    if settings.secret_key == DEFAULT_SECRET_KEY:
+    if settings.secret_key in _KNOWN_PUBLIC_SECRET_KEYS:
         problems.append(
-            "SECRET_KEY is still the public default from source control -- anyone can forge a JWT for "
+            "SECRET_KEY is still a public default from source control -- anyone can forge a JWT for "
             "any user. Set a real random value (e.g. `python -c \"import secrets; "
             'print(secrets.token_urlsafe(64))"`).'
         )
@@ -83,6 +90,19 @@ def validate_production_settings(settings: "Settings") -> None:
     if "*" in settings.cors_origins_list:
         problems.append("CORS_ORIGINS contains '*' in production -- this allows any website to call this API "
                          "with credentials, defeating the purpose of authentication cookies.")
+
+    if settings.database_url in _DEV_DATABASE_URLS:
+        problems.append(
+            "DATABASE_URL is the local development default -- set it to your production database connection string."
+        )
+
+    llm_keys_set = any([settings.gemini_api_key, settings.groq_api_key, settings.mistral_api_key])
+    if not llm_keys_set:
+        problems.append(
+            "No LLM API key is configured (GEMINI_API_KEY, GROQ_API_KEY, MISTRAL_API_KEY are all empty). "
+            "The analysis pipeline will fall back to Ollama, which is not available in a cloud deployment. "
+            "Set at least one provider key."
+        )
 
     if problems:
         raise InsecureProductionConfig(

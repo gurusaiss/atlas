@@ -34,7 +34,14 @@ export default function SecurityFindingCard({ finding, onMarkFalsePositive }) {
         <div className="px-4 pb-4 space-y-3">
           <p className="text-sm text-gray-300">{finding.description}</p>
 
-          {finding.code_snippet && <CodeViewer code={finding.code_snippet} filePath={finding.file_path} height="120px" />}
+          {finding.code_snippet && (
+            <CodeViewer
+              code={finding.code_snippet}
+              filePath={finding.file_path}
+              height="120px"
+              highlightLines={finding.line_start ? [finding.line_start] : []}
+            />
+          )}
 
           {finding.suggested_fix && (
             <div className="bg-green-950/30 border border-green-900 rounded p-3">
