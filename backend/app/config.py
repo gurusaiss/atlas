@@ -3,6 +3,17 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def redis_ssl_kwargs(redis_url: str) -> dict:
+    """Extra kwargs needed for rediss:// URLs (Upstash and other managed providers).
+
+    redis-py and Celery both raise ValueError on a bare rediss:// URL unless
+    ssl_cert_reqs is set explicitly -- they will not default it.
+    """
+    if redis_url.startswith("rediss://"):
+        return {"ssl_cert_reqs": "none"}
+    return {}
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

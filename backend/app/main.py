@@ -8,7 +8,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
 
-from app.config import get_settings
+from app.config import get_settings, redis_ssl_kwargs
 from app.database import engine
 from app.logging_config import configure_logging
 from app.middleware.logging import RequestLoggingMiddleware
@@ -87,7 +87,7 @@ async def health_ready():
         logger.exception("Database readiness check failed")
 
     try:
-        redis_client = Redis.from_url(settings.redis_url)
+        redis_client = Redis.from_url(settings.redis_url, **redis_ssl_kwargs(settings.redis_url))
         await redis_client.ping()
         await redis_client.aclose()
         checks["redis"] = True

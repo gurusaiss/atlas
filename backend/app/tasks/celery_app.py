@@ -1,6 +1,6 @@
 from celery import Celery
 
-from app.config import get_settings
+from app.config import get_settings, redis_ssl_kwargs
 
 settings = get_settings()
 
@@ -18,3 +18,8 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
 )
+
+_ssl_opts = redis_ssl_kwargs(settings.redis_url)
+if _ssl_opts:
+    celery_app.conf.broker_use_ssl = _ssl_opts
+    celery_app.conf.redis_backend_use_ssl = _ssl_opts

@@ -11,7 +11,7 @@ import logging
 
 from redis.asyncio import Redis
 
-from app.config import get_settings
+from app.config import get_settings, redis_ssl_kwargs
 
 logger = logging.getLogger("atlas.llm_cache")
 settings = get_settings()
@@ -23,7 +23,9 @@ _redis_client: Redis | None = None
 def _get_client() -> Redis:
     global _redis_client
     if _redis_client is None:
-        _redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
+        _redis_client = Redis.from_url(
+            settings.redis_url, decode_responses=True, **redis_ssl_kwargs(settings.redis_url)
+        )
     return _redis_client
 
 
