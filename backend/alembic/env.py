@@ -7,12 +7,14 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from app.config import get_settings
-from app.database import Base
+from app.database import Base, _build_engine_kwargs
 from app import models  # noqa: F401  -- registers all models on Base.metadata
 
 config = context.config
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Use the cleaned URL (sslmode stripped; asyncpg does not accept it as a URL param)
+_db_kwargs = _build_engine_kwargs(settings.database_url)
+config.set_main_option("sqlalchemy.url", _db_kwargs["url"])
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -43,6 +45,7 @@ async def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=_db_kwargs.get("connect_args", {}),
     )
 
     async with connectable.connect() as connection:
