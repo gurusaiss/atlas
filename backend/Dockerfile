@@ -21,6 +21,7 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
+    supervisor \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r atlas && useradd -r -g atlas -m atlas
 
@@ -40,5 +41,8 @@ USER atlas
 
 EXPOSE 8000
 
+# entrypoint.sh runs migrations + optional seeding, then execs its arguments.
+# supervisord launches both uvicorn (web) and celery (worker) as child processes,
+# keeping both alive and streaming their logs to stdout/stderr.
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["supervisord", "-c", "/app/supervisord.conf"]
