@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -7,7 +8,25 @@ from app.config import get_settings
 
 settings = get_settings()
 
-engine = create_async_engine(settings.database_url, pool_pre_ping=True, echo=False)
+
+def _build_engine_kwargs(raw_url: str) -> dict:
+    """Strip sslmode from URL query string (asyncpg rejects it) and convert to connect_args ssl."""
+    parsed = urlparse(raw_url)
+    params = parse_qs(parsed.query, keep_blank_values=True)
+    sslmode = params.pop("sslmode", [None])[0]
+
+    new_query = urlencode({k: v[0] for k, v in params.items()})
+    clean_url = urlunparse(parsed._replace(query=new_query))
+
+    connect_args: dict = {}
+    if sslmode and sslmode not in ("disable", "allow", "prefer"):
+        connect_args["ssl"] = True
+
+    return {"url": clean_url, "connect_args": connect_args}
+
+
+_engine_kwargs = _build_engine_kwargs(settings.database_url)
+engine = create_async_engine(**_engine_kwargs, pool_pre_ping=True, echo=False)
 
 AsyncSessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False, class_=AsyncSession)
 
