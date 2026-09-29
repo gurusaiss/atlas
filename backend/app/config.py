@@ -8,9 +8,16 @@ def redis_ssl_kwargs(redis_url: str) -> dict:
 
     redis-py and Celery both raise ValueError on a bare rediss:// URL unless
     ssl_cert_reqs is set explicitly -- they will not default it.
+
+    Use "required" (full cert + hostname verification), not "none": Upstash's
+    cert is signed by a public CA and its TLS-terminating proxy expects a
+    normal handshake with SNI. Kombu's redis transport (used by Celery) drops
+    the connection with "UNEXPECTED_EOF_WHILE_READING" when cert_reqs=NONE
+    against this kind of proxy, whereas plain redis-py is more lenient --
+    keep both paths on the same, working setting.
     """
     if redis_url.startswith("rediss://"):
-        return {"ssl_cert_reqs": "none"}
+        return {"ssl_cert_reqs": "required"}
     return {}
 
 
