@@ -1,4 +1,6 @@
 import asyncio
+import sys
+import time
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -40,16 +42,35 @@ def do_run_migrations(connection) -> None:
         context.run_migrations()
 
 
+# Managed Postgres providers (e.g. Neon free tier) suspend their compute after
+# inactivity and cold-start on the next connection, which can take longer than
+# asyncpg's default (unbounded) connect wait. Fail fast and retry with visible
+# logging instead of hanging silently past Render's port-scan deploy budget.
+_CONNECT_TIMEOUT_SECONDS = 15
+_MAX_ATTEMPTS = 5
+
+
 async def run_migrations_online() -> None:
+    connect_args = {**_db_kwargs.get("connect_args", {}), "timeout": _CONNECT_TIMEOUT_SECONDS}
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
-        connect_args=_db_kwargs.get("connect_args", {}),
+        connect_args=connect_args,
     )
 
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
+    for attempt in range(1, _MAX_ATTEMPTS + 1):
+        try:
+            print(f"Connecting to database (attempt {attempt}/{_MAX_ATTEMPTS})...", flush=True)
+            async with connectable.connect() as connection:
+                await connection.run_sync(do_run_migrations)
+            break
+        except Exception as exc:
+            print(f"  connection attempt {attempt} failed: {exc!r}", flush=True)
+            if attempt == _MAX_ATTEMPTS:
+                print("Giving up after max attempts.", flush=True)
+                sys.exit(1)
+            time.sleep(min(2**attempt, 20))
 
     await connectable.dispose()
 
