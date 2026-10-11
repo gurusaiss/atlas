@@ -2,36 +2,387 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ------------------------------------------------------------------ *
+ * Tokens. Colors are space-separated RGB triplets so Tailwind's
+ * opacity modifiers (bg-ink/10) work. The `.dark` class on <html>
+ * swaps the whole palette -- no `dark:` variants needed anywhere.
+ * ------------------------------------------------------------------ */
+:root {
+  --paper: 243 238 227;
+  --card: 251 248 241;
+  --sunk: 234 228 214;
+  --ink: 27 26 23;
+  --ink-2: 84 79 68;
+  --ink-3: 110 104 90;
+  --rule: 217 210 192;
+  --rule-strong: 190 182 160;
+  --accent: 214 69 31;
+  --accent-ink: 175 52 20;
+  --moss: 38 98 76;
+  --ochre: 150 98 14;
+  --sky: 43 76 126;
+  --crit: 158 28 52;
+  --high: 184 84 15;
+  color-scheme: light;
+}
+
+.dark {
+  --paper: 20 19 15;
+  --card: 28 27 22;
+  --sunk: 14 13 10;
+  --ink: 236 231 218;
+  --ink-2: 176 170 154;
+  --ink-3: 134 128 113;
+  --rule: 52 49 41;
+  --rule-strong: 78 74 63;
+  --accent: 240 101 58;
+  --accent-ink: 247 132 94;
+  --moss: 104 188 156;
+  --ochre: 224 172 74;
+  --sky: 128 163 216;
+  --crit: 238 108 130;
+  --high: 238 146 76;
+  color-scheme: dark;
+}
+
 @layer base {
-  html, body, #root {
-    height: 100%;
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+  html {
+    scroll-behavior: smooth;
   }
   body {
-    @apply bg-atlas-bg text-gray-100 antialiased;
+    @apply bg-paper font-sans text-ink antialiased;
+    font-feature-settings: "ss01", "cv11";
+    text-rendering: optimizeLegibility;
+  }
+  /* A faint paper grain; pure CSS so there is no image request. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.5;
+    background-image: radial-gradient(rgb(var(--ink) / 0.045) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  #root {
+    position: relative;
+    z-index: 1;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+    font-variation-settings: "SOFT" 40, "opsz" 72;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+  ::selection {
+    background: rgb(var(--accent) / 0.28);
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 3px;
+    border-radius: 2px;
   }
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-atlas-border rounded;
+    background: rgb(var(--rule-strong));
+    border-radius: 999px;
+    border: 3px solid rgb(var(--paper));
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  code,
+  kbd,
+  pre {
+    @apply font-mono;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
   }
 }
 
 @layer components {
-  .atlas-card {
-    @apply bg-atlas-panel border border-atlas-border rounded-lg;
+  /* ---- text roles ---- */
+  .eyebrow {
+    @apply font-mono text-eyebrow font-medium uppercase text-ink-3;
   }
-  .atlas-btn-primary {
-    @apply bg-atlas-accent hover:bg-atlas-accentHover text-white font-medium rounded-md px-4 py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  .display {
+    @apply font-display text-ink;
+    font-variation-settings: "SOFT" 60, "opsz" 144;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
   }
-  .atlas-btn-secondary {
-    @apply bg-transparent border border-atlas-border hover:border-atlas-accent text-gray-200 font-medium rounded-md px-4 py-2 transition-colors;
+  .drift {
+    will-change: transform;
+    @apply animate-drift;
   }
-  .atlas-input {
-    @apply bg-atlas-bg border border-atlas-border rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-atlas-accent;
+  .num {
+    @apply font-mono tabular-nums;
   }
-  .atlas-badge {
-    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
+
+  /* ---- surfaces ---- */
+  .panel {
+    @apply border border-rule bg-card;
   }
+  .panel-hover {
+    @apply transition-all duration-200 ease-out;
+  }
+  .panel-hover:hover {
+    @apply -translate-y-0.5 border-rule-strong;
+    box-shadow: 0 1px 0 rgb(var(--rule-strong)), 0 14px 28px -16px rgb(var(--ink) / 0.35);
+  }
+  .rule-b {
+    @apply border-b border-rule;
+  }
+
+  /* ---- buttons: ink on paper, vermilion on hover ---- */
+  .btn {
+    @apply relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap px-4 py-2 text-sm font-medium transition-all duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-45;
+    border-radius: 3px;
+  }
+  .btn:active:not(:disabled) {
+    @apply translate-y-px;
+  }
+  .btn-primary {
+    @apply bg-ink text-paper;
+    box-shadow: 0 0 0 1px rgb(var(--ink));
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: rgb(var(--accent));
+    box-shadow: 0 0 0 1px rgb(var(--accent)), 3px 3px 0 0 rgb(var(--ink));
+    @apply -translate-x-px -translate-y-px text-white;
+  }
+  .btn-outline {
+    @apply bg-transparent text-ink;
+    box-shadow: inset 0 0 0 1px rgb(var(--rule-strong));
+  }
+  .btn-outline:hover:not(:disabled) {
+    box-shadow: inset 0 0 0 1px rgb(var(--ink));
+    @apply bg-ink/5;
+  }
+  .btn-quiet {
+    @apply bg-transparent px-2.5 text-ink-2;
+  }
+  .btn-quiet:hover:not(:disabled) {
+    @apply bg-ink/5 text-ink;
+  }
+  .btn-danger:hover:not(:disabled) {
+    @apply bg-crit/10 text-crit;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-[0.8125rem];
+  }
+  .icon-btn {
+    @apply inline-flex h-8 w-8 items-center justify-center text-ink-3 transition-colors duration-150 hover:bg-ink/5 hover:text-ink;
+    border-radius: 3px;
+  }
+
+  /* ---- forms: ledger-style, underline fields ---- */
+  .field-label {
+    @apply mb-1.5 block font-mono text-eyebrow font-medium uppercase text-ink-3;
+  }
+  .field {
+    @apply w-full border-0 border-b border-rule-strong bg-transparent px-0 py-2 text-[0.9375rem] text-ink outline-none transition-colors duration-150 placeholder:text-ink-3/70;
+    border-radius: 0;
+  }
+  .field:hover {
+    @apply border-ink-3;
+  }
+  .field:focus {
+    @apply border-accent;
+    box-shadow: 0 1px 0 0 rgb(var(--accent));
+  }
+  .field-box {
+    @apply w-full border border-rule-strong bg-card px-3 py-2 text-[0.9375rem] text-ink outline-none transition-colors duration-150 placeholder:text-ink-3/70;
+    border-radius: 3px;
+  }
+  .field-box:focus {
+    @apply border-accent;
+    box-shadow: 0 0 0 3px rgb(var(--accent) / 0.15);
+  }
+
+  /* ---- links ---- */
+  .link {
+    @apply relative text-ink transition-colors duration-150;
+    background: linear-gradient(rgb(var(--accent)), rgb(var(--accent))) 0 100% / 100% 1px no-repeat;
+    padding-bottom: 1px;
+  }
+  .link:hover {
+    @apply text-accent-ink;
+    background-size: 100% 2px;
+  }
+  .navlink {
+    @apply relative py-1 text-sm text-ink-2 transition-colors duration-150 hover:text-ink;
+  }
+  .navlink::after {
+    content: "";
+    @apply absolute -bottom-0.5 left-0 h-px w-full origin-left scale-x-0 bg-accent transition-transform duration-200 ease-out;
+  }
+  .navlink:hover::after,
+  .navlink[aria-current="page"]::after {
+    @apply scale-x-100;
+  }
+  .navlink[aria-current="page"] {
+    @apply text-ink;
+  }
+
+  /* ---- chips, stamps ---- */
+  .chip {
+    @apply inline-flex items-center gap-1.5 border border-rule-strong px-2 py-0.5 font-mono text-[0.6875rem] uppercase tracking-wider text-ink-2;
+    border-radius: 2px;
+  }
+  .stamp {
+    @apply inline-flex items-center px-1.5 py-0.5 font-mono text-[0.6875rem] font-semibold uppercase tracking-wider;
+    border-radius: 2px;
+    border: 1.5px solid currentColor;
+    box-shadow: inset 0 0 0 1px rgb(var(--card)), inset 0 0 0 2px currentColor;
+  }
+  .dot {
+    @apply inline-block h-1.5 w-1.5 rounded-full bg-current;
+  }
+
+  /* ---- loading ---- */
+  .skeleton {
+    @apply animate-shimmer;
+    background-image: linear-gradient(
+      90deg,
+      rgb(var(--ink) / 0.05) 25%,
+      rgb(var(--ink) / 0.1) 37%,
+      rgb(var(--ink) / 0.05) 63%
+    );
+    background-size: 200% 100%;
+    border-radius: 2px;
+  }
+
+  /* ---- motion helpers ---- */
+  .rise {
+    @apply animate-rise;
+    animation-delay: calc(var(--i, 0) * 60ms);
+  }
+
+  /* ---- long-form markdown (documentation tab) ---- */
+  .prose-atlas {
+    @apply text-[0.9375rem] leading-7 text-ink-2;
+  }
+  .prose-atlas > :first-child {
+    margin-top: 0;
+  }
+  .prose-atlas h1,
+  .prose-atlas h2,
+  .prose-atlas h3,
+  .prose-atlas h4 {
+    @apply font-display text-ink;
+  }
+  .prose-atlas h1 {
+    @apply mb-4 mt-10 text-3xl;
+  }
+  .prose-atlas h2 {
+    @apply mb-3 mt-9 border-b border-rule pb-2 text-2xl;
+  }
+  .prose-atlas h3 {
+    @apply mb-2 mt-7 text-lg;
+  }
+  .prose-atlas p {
+    @apply my-4;
+  }
+  .prose-atlas strong {
+    @apply font-semibold text-ink;
+  }
+  .prose-atlas a {
+    @apply text-accent-ink underline underline-offset-2;
+  }
+  .prose-atlas ul,
+  .prose-atlas ol {
+    @apply my-4 pl-6;
+  }
+  .prose-atlas ul {
+    list-style: none;
+  }
+  .prose-atlas ul > li {
+    @apply relative;
+  }
+  .prose-atlas ul > li::before {
+    content: "";
+    @apply absolute -left-4 top-3 h-px w-2 bg-accent;
+  }
+  .prose-atlas ol {
+    @apply list-decimal;
+  }
+  .prose-atlas li {
+    @apply my-1.5;
+  }
+  .prose-atlas code {
+    @apply bg-sunk px-1.5 py-0.5 text-[0.8125rem] text-ink;
+    border-radius: 2px;
+  }
+  .prose-atlas pre {
+    @apply my-5 overflow-x-auto border border-rule bg-sunk p-4 text-[0.8125rem] leading-6;
+  }
+  .prose-atlas pre code {
+    @apply bg-transparent p-0;
+  }
+  .prose-atlas blockquote {
+    @apply my-5 border-l-2 border-accent pl-4 italic text-ink-2;
+  }
+  .prose-atlas table {
+    @apply my-5 w-full border-collapse text-sm;
+  }
+  .prose-atlas th {
+    @apply border-b border-rule-strong px-3 py-2 text-left font-mono text-eyebrow uppercase text-ink-3;
+  }
+  .prose-atlas td {
+    @apply border-b border-rule px-3 py-2;
+  }
+  .prose-atlas hr {
+    @apply my-8 border-rule;
+  }
+}
+
+/* Monaco line highlight for flagged code (rendered inside the editor's DOM) */
+.atlas-hl-line {
+  background: rgb(var(--crit) / 0.12);
+}
+.atlas-hl-gutter {
+  background: rgb(var(--crit));
+  width: 3px !important;
+  margin-left: 3px;
+}
+
+/* React Flow chrome, re-skinned to the paper palette */
+.react-flow__controls {
+  box-shadow: none !important;
+  border: 1px solid rgb(var(--rule-strong));
+  border-radius: 3px;
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: rgb(var(--card)) !important;
+  border-bottom: 1px solid rgb(var(--rule)) !important;
+  fill: rgb(var(--ink)) !important;
+}
+.react-flow__controls-button:hover {
+  background: rgb(var(--sunk)) !important;
+}
+.react-flow__edge-text {
+  font-family: "IBM Plex Mono", monospace;
 }

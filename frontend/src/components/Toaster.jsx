@@ -1,42 +1,47 @@
-import { CheckCircle2, Info, X, XCircle } from "lucide-react";
+import { X } from "lucide-react";
 import { useToastStore } from "../store/toastStore.js";
 
 const VARIANTS = {
-  success: { icon: CheckCircle2, cls: "border-green-800 text-atlas-success" },
-  error: { icon: XCircle, cls: "border-red-900 text-atlas-critical" },
-  info: { icon: Info, cls: "border-atlas-border text-gray-300" },
+  success: { label: "Done", bar: "bg-moss", text: "text-moss" },
+  error: { label: "Problem", bar: "bg-crit", text: "text-crit" },
+  info: { label: "Note", bar: "bg-sky", text: "text-sky" },
 };
 
 export default function Toaster() {
   const toasts = useToastStore((s) => s.toasts);
   const dismiss = useToastStore((s) => s.dismiss);
 
-  if (!toasts.length) return null;
-
   return (
     <div
-      className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-[min(22rem,calc(100vw-2rem))]"
+      className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
       role="region"
       aria-label="Notifications"
     >
-      {toasts.map(({ id, type, message }) => {
-        const { icon: Icon, cls } = VARIANTS[type] ?? VARIANTS.info;
+      {toasts.map(({ id, type, message, duration }) => {
+        const v = VARIANTS[type] ?? VARIANTS.info;
         return (
           <div
             key={id}
-            role="status"
-            aria-live="polite"
-            className={`atlas-card ${cls} p-3 pr-2 flex items-start gap-2.5 shadow-lg animate-[fadeIn_150ms_ease-out]`}
+            role={type === "error" ? "alert" : "status"}
+            className="panel pointer-events-auto relative animate-pop overflow-hidden shadow-[0_18px_40px_-18px_rgb(0_0_0/0.4)]"
           >
-            <Icon className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-            <p className="text-sm text-gray-200 flex-1 break-words">{message}</p>
-            <button
-              onClick={() => dismiss(id)}
-              aria-label="Dismiss notification"
-              className="text-gray-500 hover:text-gray-200 shrink-0"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <span className={`absolute inset-y-0 left-0 w-1 ${v.bar}`} aria-hidden="true" />
+            <div className="flex items-start gap-3 py-3 pl-5 pr-2">
+              <div className="min-w-0 flex-1">
+                <p className={`eyebrow ${v.text}`}>{v.label}</p>
+                <p className="mt-0.5 break-words text-sm leading-5 text-ink">{message}</p>
+              </div>
+              <button onClick={() => dismiss(id)} aria-label="Dismiss notification" className="icon-btn !h-7 !w-7 shrink-0">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {duration > 0 && (
+              <span
+                className={`absolute bottom-0 left-0 h-0.5 w-full origin-left ${v.bar} opacity-60`}
+                style={{ animation: `tick ${duration}ms linear reverse forwards` }}
+                aria-hidden="true"
+              />
+            )}
           </div>
         );
       })}

@@ -4,6 +4,19 @@ import { ArrowLeft } from "lucide-react";
 import { useRepository, useCallGraph } from "../hooks/useAtlas.js";
 import CallGraphViewer from "../components/CallGraphViewer.jsx";
 import { ErrorCard, SkeletonList } from "../components/QueryState.jsx";
+import { usePageTitle } from "../hooks/usePageTitle.js";
+
+function Toggle({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`chip cursor-pointer !px-3 !py-1.5 transition-colors ${active ? "!border-ink bg-ink !text-paper" : "hover:border-ink-3 hover:text-ink"}`}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function CallGraph() {
   const { repositoryId } = useParams();
@@ -13,48 +26,44 @@ export default function CallGraph() {
   const [highCouplingOnly, setHighCouplingOnly] = useState(false);
   const [entryPointsOnly, setEntryPointsOnly] = useState(false);
 
+  usePageTitle(repository?.name ? `${repository.name} call graph` : "Call graph");
+
   const nodes = entryPointsOnly ? (graph?.nodes || []).filter((n) => n.is_entry_point) : graph?.nodes || [];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <Link
-        to={repository ? `/projects/${repository.project_id}` : "/dashboard"}
-        className="text-sm text-gray-500 hover:text-gray-300 flex items-center gap-1 mb-4"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" />
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <Link to={repository ? `/projects/${repository.project_id}` : "/dashboard"} className="navlink inline-flex items-center gap-1.5">
+        <ArrowLeft className="h-3.5 w-3.5" />
         Back
       </Link>
 
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+      <header className="rise mt-6 flex flex-wrap items-end justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-semibold">{repository?.name || "Repository"} — Call Graph</h1>
-          <p className="text-sm text-gray-500">
-            Force-directed view of cross-file function calls. Node size = LOC, color = cyclomatic complexity.
+          <p className="eyebrow mb-3">Call graph</p>
+          <h1 className="display text-4xl sm:text-5xl">{repository?.name || "Repository"}</h1>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-ink-2">
+            Every file that calls into another. Block width reflects lines of code; the outline shows cyclomatic complexity.
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
-          <button
-            onClick={() => setHighCouplingOnly((v) => !v)}
-            className={`atlas-badge cursor-pointer ${highCouplingOnly ? "bg-amber-900 text-amber-300" : "bg-gray-800 text-gray-400"}`}
-          >
-            High coupling only
-          </button>
-          <button
-            onClick={() => setEntryPointsOnly((v) => !v)}
-            className={`atlas-badge cursor-pointer ${entryPointsOnly ? "bg-blue-900 text-blue-300" : "bg-gray-800 text-gray-400"}`}
-          >
-            Entry points only
-          </button>
+        <div className="flex gap-2">
+          <Toggle active={highCouplingOnly} onClick={() => setHighCouplingOnly((v) => !v)}>
+            High coupling
+          </Toggle>
+          <Toggle active={entryPointsOnly} onClick={() => setEntryPointsOnly((v) => !v)}>
+            Entry points
+          </Toggle>
         </div>
-      </div>
+      </header>
 
-      {graphQuery.isLoading ? (
-        <SkeletonList rows={3} />
-      ) : graphQuery.isError ? (
-        <ErrorCard error={graphQuery.error} onRetry={() => graphQuery.refetch()} />
-      ) : (
-        <CallGraphViewer nodes={nodes} edges={graph?.edges || []} filterHighCouplingOnly={highCouplingOnly} />
-      )}
+      <div className="mt-8">
+        {graphQuery.isLoading ? (
+          <SkeletonList rows={3} />
+        ) : graphQuery.isError ? (
+          <ErrorCard error={graphQuery.error} onRetry={() => graphQuery.refetch()} />
+        ) : (
+          <CallGraphViewer nodes={nodes} edges={graph?.edges || []} filterHighCouplingOnly={highCouplingOnly} />
+        )}
+      </div>
     </div>
   );
 }

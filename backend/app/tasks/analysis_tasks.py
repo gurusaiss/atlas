@@ -91,7 +91,14 @@ async def _run_pipeline_async(job_id: str) -> None:
                             pjob = await pdb.get(Job, job_id)
                             if pjob:
                                 pjob.current_agent = label
-                                pjob.progress = pct
+                                # Parallel agents can finish out of order; never let the bar go backwards.
+                                pjob.progress = max(pjob.progress or 0, pct)
+                                # current_step holds the finished node keys (CSV) so the UI can
+                                # show true per-agent status while the run is still in flight.
+                                done = [s for s in (pjob.current_step or "").split(",") if s]
+                                if node_name not in done:
+                                    done.append(node_name)
+                                pjob.current_step = ",".join(done)
                                 await pdb.commit()
                     except Exception:
                         logger.warning("Progress update failed for job %s node %s", job_id, node_name)

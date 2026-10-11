@@ -1,11 +1,11 @@
 """Integration test: register -> create project -> add repository -> create job
--> verify findings/ownership enforcement. Celery's .delay() is mocked so this
-test never actually dispatches a worker task or touches the LLM pipeline.
+-> verify findings/ownership enforcement. start_job_in_process is mocked so this
+test never actually runs the LLM pipeline.
 
 Requires a real Postgres (DATABASE_URL) -- see conftest.py.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 async def _register_and_login(client, email: str, password: str = "realpassword1") -> str:
@@ -26,9 +26,7 @@ async def test_full_project_repository_job_flow(client, db_session):
     assert project_resp.status_code == 201
     project_id = project_resp.json()["id"]
 
-    with patch("app.routers.jobs.run_full_analysis") as mock_task:
-        mock_task.delay = MagicMock(return_value=MagicMock(id="fake-celery-task-id"))
-
+    with patch("app.routers.jobs.start_job_in_process") as mock_start:
         # Directly insert a "ready" repository via the DB session rather than a real
         # upload, to isolate this test from ZIP handling (covered separately).
         from app.models.repository import Repository
@@ -42,7 +40,7 @@ async def test_full_project_repository_job_flow(client, db_session):
         assert job_resp.status_code == 201
         job_body = job_resp.json()
         assert job_body["status"] == "queued"
-        mock_task.delay.assert_called_once()
+        mock_start.assert_called_once()
 
     list_resp = await client.get("/api/v1/jobs", headers=headers)
     assert list_resp.status_code == 200

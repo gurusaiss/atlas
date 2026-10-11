@@ -1,79 +1,117 @@
+import { useMemo, useState } from "react";
 import { useAnalyticsDashboard, useAnalyticsGuardrails, useAnalyticsTokens } from "../hooks/useAtlas.js";
-import { QueryState, SkeletonList } from "../components/QueryState.jsx";
-import { BarChart2, Shield, Cpu } from "lucide-react";
+import { EmptyState, ErrorCard, SkeletonList } from "../components/QueryState.jsx";
+import { SEVERITIES, TONE_BG, TONE_TEXT, usePalette } from "../utils/colors.js";
+import { usePageTitle } from "../hooks/usePageTitle.js";
+import { compactNumber, formatDate } from "../utils/format.js";
 
-function StatCard({ label, value, sub }) {
+function Stat({ label, value, sub }) {
   return (
-    <div className="atlas-card p-5">
-      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label}</p>
-      <p className="text-2xl font-semibold">{value}</p>
-      {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
+    <div className="bg-card p-5">
+      <p className="eyebrow">{label}</p>
+      <p className="display mt-2 text-4xl tabular-nums">{value}</p>
+      {sub && <p className="mt-1 text-xs text-ink-3">{sub}</p>}
     </div>
   );
 }
 
-function SeverityBar({ label, count, total, colorClass }) {
-  const pct = total ? Math.round((count / total) * 100) : 0;
+function Section({ eyebrow, title, children }) {
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs text-gray-400 w-16 shrink-0 capitalize">{label}</span>
-      <div className="flex-1 bg-atlas-border rounded-full h-2">
-        <div className={`h-2 rounded-full ${colorClass}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-xs text-gray-400 w-8 text-right">{count}</span>
-    </div>
+    <section className="mt-16">
+      <p className="eyebrow mb-2">{eyebrow}</p>
+      <h2 className="display mb-6 text-3xl">{title}</h2>
+      {children}
+    </section>
   );
 }
+
+const PROVIDERS = [
+  { key: "gemini_tokens", label: "Gemini", tone: "sky" },
+  { key: "groq_tokens", label: "Groq", tone: "ochre" },
+  { key: "mistral_tokens", label: "Mistral", tone: "accent" },
+];
 
 function TokenChart({ rows }) {
-  if (!rows?.length) return <p className="text-sm text-gray-500">No token usage data yet.</p>;
+  const palette = usePalette();
+  const [active, setActive] = useState(null);
 
-  const maxTotal = Math.max(...rows.map((r) => r.gemini_tokens + r.groq_tokens + r.mistral_tokens), 1);
+  const W = 760;
+  const H = 230;
+  const pad = { l: 44, r: 8, t: 10, b: 28 };
+
+  const { bars, max, ticks } = useMemo(() => {
+    const totals = rows.map((r) => PROVIDERS.reduce((s, p) => s + (r[p.key] || 0), 0));
+    const maxVal = Math.max(...totals, 1);
+    const innerW = W - pad.l - pad.r;
+    const step = innerW / rows.length;
+    const barW = Math.min(step * 0.62, 44);
+    const y = (v) => pad.t + (H - pad.t - pad.b) * (1 - v / maxVal);
+    const built = rows.map((r, i) => {
+      let acc = 0;
+      const x = pad.l + step * i + (step - barW) / 2;
+      const segments = PROVIDERS.map((p) => {
+        const v = r[p.key] || 0;
+        const seg = { ...p, v, y: y(acc + v), h: y(acc) - y(acc + v) };
+        acc += v;
+        return seg;
+      });
+      return { row: r, x, w: barW, total: totals[i], segments };
+    });
+    const tickVals = [0, 0.5, 1].map((f) => Math.round(maxVal * f));
+    return { bars: built, max: maxVal, ticks: tickVals.map((v) => ({ v, y: y(v) })) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
+
+  const totals = PROVIDERS.map((p) => ({ ...p, total: rows.reduce((s, r) => s + (r[p.key] || 0), 0) }));
+  const focus = active != null ? bars[active] : null;
 
   return (
-    <div className="space-y-2">
-      {rows.map((r) => {
-        const total = r.gemini_tokens + r.groq_tokens + r.mistral_tokens;
-        return (
-          <div key={r.date} className="flex items-center gap-3">
-            <span className="text-xs text-gray-500 w-24 shrink-0">{r.date}</span>
-            <div className="flex-1 flex h-4 rounded overflow-hidden bg-atlas-border">
-              {r.gemini_tokens > 0 && (
-                <div
-                  title={`Gemini: ${r.gemini_tokens.toLocaleString()}`}
-                  className="bg-blue-500"
-                  style={{ width: `${(r.gemini_tokens / maxTotal) * 100}%` }}
-                />
+    <div>
+      <div className="panel p-4 sm:p-5">
+        <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Stacked bar chart of tokens used per day by provider">
+          {ticks.map((t) => (
+            <g key={t.v}>
+              <line x1={pad.l} x2={W - pad.r} y1={t.y} y2={t.y} stroke={palette.rule} strokeDasharray={t.v === 0 ? "0" : "2 4"} />
+              <text x={pad.l - 8} y={t.y + 3.5} textAnchor="end" fontSize="10" fill={palette.ink3} fontFamily='"IBM Plex Mono", monospace'>
+                {compactNumber(t.v)}
+              </text>
+            </g>
+          ))}
+          {bars.map((b, i) => (
+            <g key={b.row.date} onMouseEnter={() => setActive(i)} onMouseLeave={() => setActive(null)} onFocus={() => setActive(i)} onBlur={() => setActive(null)} tabIndex={0} style={{ outline: "none" }}>
+              <rect x={b.x - 4} y={pad.t} width={b.w + 8} height={H - pad.t - pad.b} fill={active === i ? palette.sunk : "transparent"} />
+              {b.segments.map((s) => (
+                <rect key={s.key} x={b.x} y={s.y} width={b.w} height={Math.max(s.h, 0)} fill={palette[s.tone]} opacity={active == null || active === i ? 1 : 0.45} style={{ transition: "opacity 150ms" }} />
+              ))}
+              {(rows.length <= 10 || i % Math.ceil(rows.length / 8) === 0) && (
+                <text x={b.x + b.w / 2} y={H - 9} textAnchor="middle" fontSize="10" fill={palette.ink3} fontFamily='"IBM Plex Mono", monospace'>
+                  {b.row.date.slice(5)}
+                </text>
               )}
-              {r.groq_tokens > 0 && (
-                <div
-                  title={`Groq: ${r.groq_tokens.toLocaleString()}`}
-                  className="bg-purple-500"
-                  style={{ width: `${(r.groq_tokens / maxTotal) * 100}%` }}
-                />
-              )}
-              {r.mistral_tokens > 0 && (
-                <div
-                  title={`Mistral: ${r.mistral_tokens.toLocaleString()}`}
-                  className="bg-orange-400"
-                  style={{ width: `${(r.mistral_tokens / maxTotal) * 100}%` }}
-                />
-              )}
-            </div>
-            <span className="text-xs text-gray-500 w-20 text-right">{total.toLocaleString()}</span>
-          </div>
-        );
-      })}
-      <div className="flex items-center gap-4 pt-2 text-xs text-gray-500">
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-500 inline-block" />Gemini</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-purple-500 inline-block" />Groq</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-orange-400 inline-block" />Mistral</span>
+            </g>
+          ))}
+        </svg>
+        <p className="num mt-2 min-h-[1.25rem] text-xs text-ink-2" aria-live="polite">
+          {focus
+            ? `${formatDate(focus.row.date)} · ${focus.total.toLocaleString()} tokens · ${focus.segments.filter((s) => s.v).map((s) => `${s.label} ${s.v.toLocaleString()}`).join(" · ")}`
+            : `Peak day: ${max.toLocaleString()} tokens`}
+        </p>
       </div>
+      <ul className="mt-4 flex flex-wrap gap-x-8 gap-y-2">
+        {totals.map((p) => (
+          <li key={p.key} className="flex items-center gap-2 text-sm text-ink-2">
+            <span className="h-2.5 w-2.5" style={{ background: palette[p.tone] }} />
+            {p.label}
+            <span className="num text-ink-3">{compactNumber(p.total)}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
 export default function Analytics() {
+  usePageTitle("Analytics");
   const dashQuery = useAnalyticsDashboard();
   const guardrailQuery = useAnalyticsGuardrails();
   const tokenQuery = useAnalyticsTokens();
@@ -81,102 +119,94 @@ export default function Analytics() {
   const dash = dashQuery.data;
   const severities = dash?.total_findings_by_severity || {};
   const totalFindings = Object.values(severities).reduce((a, b) => a + b, 0);
+  const guardrailMax = Math.max(...(guardrailQuery.data || []).map((r) => r.count), 1);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-      <div className="flex items-center gap-3 mb-8">
-        <BarChart2 className="w-6 h-6 text-atlas-accent" />
-        <div>
-          <h1 className="text-2xl font-semibold">Analytics</h1>
-          <p className="text-gray-500 text-sm">Cross-project usage and quality metrics</p>
-        </div>
-      </div>
+    <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+      <header className="rise">
+        <p className="eyebrow mb-3">Across all projects</p>
+        <h1 className="display text-4xl sm:text-5xl">Analytics</h1>
+      </header>
 
-      {/* Overview stats */}
-      <section className="mb-8">
-        <h2 className="text-sm uppercase tracking-wide text-gray-500 mb-3">Overview</h2>
+      <div className="mt-10">
         {dashQuery.isLoading ? (
           <SkeletonList rows={2} />
         ) : dashQuery.isError ? (
-          <p className="text-sm text-atlas-critical">Failed to load overview stats.</p>
+          <ErrorCard error={dashQuery.error} onRetry={() => dashQuery.refetch()} />
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <StatCard label="Repositories" value={dash.total_repos} />
-            <StatCard label="Jobs" value={dash.total_jobs} />
-            <StatCard label="Findings" value={totalFindings} />
-            <StatCard label="Avg Complexity" value={dash.avg_complexity} />
-            <StatCard label="Avg Debt" value={`${dash.avg_debt_minutes}m`} sub="technical debt" />
-            <StatCard label="Guardrails Today" value={dash.guardrail_events_today} />
+          <div className="rise grid grid-cols-2 gap-px border border-rule bg-rule sm:grid-cols-3 lg:grid-cols-6" style={{ "--i": 1 }}>
+            <Stat label="Repositories" value={dash.total_repos} />
+            <Stat label="Analyses" value={dash.total_jobs} />
+            <Stat label="Findings" value={totalFindings} />
+            <Stat label="Avg complexity" value={dash.avg_complexity} />
+            <Stat label="Avg debt" value={`${dash.avg_debt_minutes}m`} sub="per file" />
+            <Stat label="Guardrails today" value={dash.guardrail_events_today} />
           </div>
         )}
-      </section>
+      </div>
 
-      {/* Findings by severity */}
-      {!dashQuery.isLoading && dash && (
-        <section className="atlas-card p-6 mb-6">
-          <h2 className="text-sm font-medium mb-4">Findings by Severity</h2>
+      {dash && (
+        <Section eyebrow="Security" title="Findings by severity">
           {totalFindings === 0 ? (
-            <p className="text-sm text-gray-500">No findings yet.</p>
+            <EmptyState title="Nothing to report." message="No findings have been recorded yet." seed="findings" />
           ) : (
-            <div className="space-y-2">
-              {[
-                { key: "critical", label: "Critical", color: "bg-atlas-critical" },
-                { key: "high", label: "High", color: "bg-orange-400" },
-                { key: "medium", label: "Medium", color: "bg-atlas-warning" },
-                { key: "low", label: "Low", color: "bg-blue-400" },
-                { key: "info", label: "Info", color: "bg-gray-500" },
-              ].map(({ key, label, color }) =>
-                severities[key] !== undefined || severities[key] === 0 ? (
-                  <SeverityBar key={key} label={label} count={severities[key] || 0} total={totalFindings} colorClass={color} />
-                ) : null
-              )}
+            <div>
+              <div className="flex h-3 overflow-hidden bg-rule" role="img" aria-label="Share of findings by severity">
+                {SEVERITIES.map((s) => (
+                  <div key={s.key} className={TONE_BG[s.tone]} style={{ width: `${((severities[s.key] || 0) / totalFindings) * 100}%` }} title={`${s.label}: ${severities[s.key] || 0}`} />
+                ))}
+              </div>
+              <dl className="mt-6 grid grid-cols-2 gap-px border border-rule bg-rule sm:grid-cols-5">
+                {SEVERITIES.map((s) => (
+                  <div key={s.key} className="bg-card p-4">
+                    <dt className="flex items-center gap-2 font-mono text-[0.6875rem] uppercase tracking-wider text-ink-2">
+                      <span className={`h-2 w-2 ${TONE_BG[s.tone]}`} />
+                      {s.label}
+                    </dt>
+                    <dd className={`display mt-2 text-3xl tabular-nums ${severities[s.key] ? TONE_TEXT[s.tone] : "text-ink-3/50"}`}>{severities[s.key] || 0}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
           )}
-        </section>
+        </Section>
       )}
 
-      {/* Token usage */}
-      <section className="atlas-card p-6 mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Cpu className="w-4 h-4 text-gray-400" />
-          <h2 className="text-sm font-medium">Token Usage by Day</h2>
-        </div>
+      <Section eyebrow="Language models" title="Token usage by day">
         {tokenQuery.isLoading ? (
           <SkeletonList rows={3} />
         ) : tokenQuery.isError ? (
-          <p className="text-sm text-atlas-critical">Failed to load token data.</p>
+          <ErrorCard error={tokenQuery.error} onRetry={() => tokenQuery.refetch()} />
+        ) : !tokenQuery.data?.length ? (
+          <EmptyState title="No usage yet." message="Token usage appears here after your first analysis." seed="tokens" />
         ) : (
           <TokenChart rows={tokenQuery.data} />
         )}
-      </section>
+      </Section>
 
-      {/* Guardrail events */}
-      <section className="atlas-card p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Shield className="w-4 h-4 text-gray-400" />
-          <h2 className="text-sm font-medium">Guardrail Events</h2>
-        </div>
+      <Section eyebrow="Responsible AI" title="Guardrail events">
         {guardrailQuery.isLoading ? (
           <SkeletonList rows={3} />
         ) : guardrailQuery.isError ? (
-          <p className="text-sm text-atlas-critical">Failed to load guardrail data.</p>
+          <ErrorCard error={guardrailQuery.error} onRetry={() => guardrailQuery.refetch()} />
         ) : !guardrailQuery.data?.length ? (
-          <p className="text-sm text-gray-500">No guardrail events recorded yet.</p>
+          <EmptyState title="All quiet." message="No guardrail events have been recorded yet." seed="guardrails" />
         ) : (
-          <div className="divide-y divide-atlas-border">
+          <ul className="panel divide-y divide-rule">
             {guardrailQuery.data.map((row, i) => (
-              <div key={i} className="flex items-center justify-between py-2.5 text-sm">
-                <div>
-                  <span className="font-mono text-gray-300">{row.check_type}</span>
-                  <span className="text-gray-500 mx-2">&rarr;</span>
-                  <span className="text-gray-400">{row.action_taken}</span>
+              <li key={i} className="grid grid-cols-[1fr_auto] items-center gap-x-6 gap-y-2 px-5 py-4 sm:grid-cols-[1fr_12rem_3rem]">
+                <p className="font-mono text-[0.8125rem] text-ink">
+                  {row.check_type} <span className="text-ink-3">→</span> <span className="text-ink-2">{row.action_taken}</span>
+                </p>
+                <div className="hidden h-1 bg-rule sm:block" aria-hidden="true">
+                  <div className="h-full bg-ink" style={{ width: `${(row.count / guardrailMax) * 100}%` }} />
                 </div>
-                <span className="atlas-badge bg-atlas-border text-gray-400">{row.count}</span>
-              </div>
+                <p className="num text-right text-sm text-ink-2">{row.count}</p>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-      </section>
+      </Section>
     </div>
   );
 }

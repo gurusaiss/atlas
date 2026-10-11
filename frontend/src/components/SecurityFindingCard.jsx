@@ -1,73 +1,81 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import CodeViewer from "./CodeViewer.jsx";
+import { SEVERITIES, TONE_BORDER, TONE_TEXT } from "../utils/colors.js";
 
-const SEVERITY_STYLES = {
-  critical: "bg-red-950 text-atlas-critical border-red-900",
-  high: "bg-orange-950 text-orange-400 border-orange-900",
-  medium: "bg-amber-950 text-atlas-warning border-amber-900",
-  low: "bg-blue-950 text-blue-400 border-blue-900",
-  info: "bg-gray-800 text-gray-400 border-gray-700",
-};
+const SEVERITY_TONE = Object.fromEntries(SEVERITIES.map((s) => [s.key, s.tone]));
 
 export default function SecurityFindingCard({ finding, onMarkFalsePositive }) {
   const [expanded, setExpanded] = useState(false);
-  const severityStyle = SEVERITY_STYLES[finding.severity] || SEVERITY_STYLES.info;
+  const tone = SEVERITY_TONE[finding.severity] || "ink3";
+  const dismissed = finding.is_false_positive;
 
   return (
-    <div className={`atlas-card border-l-4 ${severityStyle.split(" ").find((c) => c.startsWith("border"))}`}>
+    <article className={`panel border-l-[3px] ${TONE_BORDER[tone]} transition-opacity ${dismissed ? "opacity-55" : ""}`}>
       <button
-        className="w-full flex items-center justify-between px-4 py-3 text-left"
+        className="group flex w-full items-start justify-between gap-4 px-5 py-4 text-left"
         onClick={() => setExpanded((e) => !e)}
+        aria-expanded={expanded}
       >
-        <div className="flex items-center gap-3">
-          {expanded ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
-          <span className={`atlas-badge ${severityStyle}`}>{finding.severity?.toUpperCase()}</span>
-          <span className="text-sm font-medium">{finding.title}</span>
+        <div className="flex min-w-0 items-start gap-3">
+          <ChevronRight className={`mt-1 h-4 w-4 shrink-0 text-ink-3 transition-transform duration-200 ${expanded ? "rotate-90 text-ink" : "group-hover:translate-x-0.5"}`} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className={`stamp ${TONE_TEXT[tone]}`}>{finding.severity}</span>
+              <h3 className={`font-display text-lg leading-snug text-ink ${dismissed ? "line-through decoration-ink-3" : ""}`}>{finding.title}</h3>
+            </div>
+            <p className="mt-1.5 truncate font-mono text-xs text-ink-3">
+              {finding.file_path}
+              {finding.line_start ? `:${finding.line_start}` : ""}
+            </p>
+          </div>
         </div>
-        <span className="text-xs text-gray-500 font-mono">
-          {finding.file_path}:{finding.line_start}
-        </span>
+        {finding.cwe_id && <span className="chip hidden shrink-0 sm:inline-flex">{finding.cwe_id}</span>}
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 space-y-3">
-          <p className="text-sm text-gray-300">{finding.description}</p>
+        <div className="animate-fade space-y-4 border-t border-rule px-5 pb-5 pt-4 sm:pl-12">
+          <p className="text-[0.9375rem] leading-7 text-ink-2">{finding.description}</p>
 
           {finding.code_snippet && (
             <CodeViewer
               code={finding.code_snippet}
               filePath={finding.file_path}
-              height="120px"
-              highlightLines={finding.line_start ? [finding.line_start] : []}
+              height={`${Math.min(finding.code_snippet.split("\n").length * 20 + 28, 280)}px`}
+              startLine={finding.line_start || 1}
+              highlightLines={
+                finding.line_start
+                  ? Array.from(
+                      { length: Math.min(Math.max((finding.line_end || finding.line_start) - finding.line_start + 1, 1), 8) },
+                      (_, i) => i + 1
+                    )
+                  : []
+              }
             />
           )}
 
           {finding.suggested_fix && (
-            <div className="bg-green-950/30 border border-green-900 rounded p-3">
-              <p className="text-xs text-atlas-success font-medium mb-1">Suggested fix</p>
-              <p className="text-sm text-gray-300">{finding.suggested_fix}</p>
+            <div className="border-l-2 border-moss bg-moss/10 px-4 py-3">
+              <p className="eyebrow !text-moss">Suggested fix</p>
+              <p className="mt-1 text-sm leading-6 text-ink">{finding.suggested_fix}</p>
             </div>
           )}
 
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <span>
-              {finding.owasp_category && `${finding.owasp_category} -- ${finding.owasp_title || ""}`}
-              {finding.cwe_id && ` · ${finding.cwe_id}`}
-              {finding.source && ` · detected by ${finding.source}`}
-            </span>
-            {onMarkFalsePositive && !finding.is_false_positive && (
-              <button
-                onClick={() => onMarkFalsePositive(finding.id)}
-                className="text-atlas-accent hover:underline"
-              >
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs text-ink-3">
+            <p className="font-mono">
+              {[finding.owasp_category && `${finding.owasp_category} ${finding.owasp_title || ""}`.trim(), finding.source && `via ${finding.source}`]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+            {onMarkFalsePositive && !dismissed && (
+              <button onClick={() => onMarkFalsePositive(finding.id)} className="link text-[0.8125rem]">
                 Mark as false positive
               </button>
             )}
-            {finding.is_false_positive && <span className="text-gray-600">Marked as false positive</span>}
+            {dismissed && <span>Dismissed as a false positive</span>}
           </div>
         </div>
       )}
-    </div>
+    </article>
   );
 }

@@ -1,30 +1,31 @@
-const ACTION_COLORS = {
-  allowed: "text-atlas-success",
-  blocked: "text-atlas-critical",
-  redacted: "text-atlas-warning",
-  flagged: "text-atlas-warning",
-  warned: "text-yellow-500",
+const ACTION_STYLE = {
+  allowed: "text-moss",
+  blocked: "text-crit",
+  redacted: "text-ochre",
+  flagged: "text-ochre",
+  warned: "text-ochre",
 };
 
 export default function GuardrailEventFeed({ events = [] }) {
-  if (!events.length) {
-    return <div className="atlas-card p-4 text-sm text-gray-500">No guardrail events yet.</div>;
-  }
-
   return (
-    <div className="atlas-card p-4 max-h-64 overflow-y-auto">
-      <h3 className="text-sm text-gray-400 mb-2">Guardrail Events</h3>
-      <ul className="space-y-1.5">
-        {events.map((e, i) => (
-          <li key={i} className="text-xs flex items-center gap-2">
-            <span className={`font-medium ${ACTION_COLORS[e.action] || "text-gray-400"}`}>
-              {e.action?.toUpperCase()}
-            </span>
-            <span className="text-gray-500">{e.check_type}</span>
-            {e.agent && <span className="text-gray-600">&middot; {e.agent}</span>}
-          </li>
-        ))}
-      </ul>
+    <div className="panel p-5">
+      <div className="flex items-baseline justify-between">
+        <p className="eyebrow">Guardrail log</p>
+        <p className="num text-xs text-ink-3">{events.length} event{events.length === 1 ? "" : "s"}</p>
+      </div>
+      {events.length === 0 ? (
+        <p className="mt-4 text-sm leading-6 text-ink-3">Nothing has needed flagging so far. Redactions and blocks will appear here as they happen.</p>
+      ) : (
+        <ul className="mt-4 max-h-60 space-y-2 overflow-y-auto pr-1" aria-live="polite">
+          {events.map((e, i) => (
+            <li key={i} className="animate-fade font-mono text-xs leading-5">
+              <span className={`font-semibold uppercase ${ACTION_STYLE[e.action] || "text-ink-2"}`}>{e.action}</span>{" "}
+              <span className="text-ink-2">{e.check_type}</span>
+              {e.agent && <span className="text-ink-3"> · {e.agent}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

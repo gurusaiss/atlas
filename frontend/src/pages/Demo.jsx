@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Coffee, Loader2, ShieldAlert } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { useDemoRepositories, useLoadDemo } from "../hooks/useAtlas.js";
 import { useAuth } from "../hooks/useAuth.js";
-import { ErrorCard, SkeletonCards, describeError } from "../components/QueryState.jsx";
+import { EmptyState, ErrorCard, SkeletonCards, describeError } from "../components/QueryState.jsx";
+import Contour from "../components/Contour.jsx";
+import { usePageTitle } from "../hooks/usePageTitle.js";
 
 export default function Demo() {
+  usePageTitle("Live demo");
   const demoQuery = useDemoRepositories();
   const repos = demoQuery.data;
   const loadDemo = useLoadDemo();
@@ -18,11 +21,9 @@ export default function Demo() {
     setError("");
     setLoadingRepo(repoName);
     try {
-      // The results dashboard sits behind auth (resource ownership checks apply
-      // to every job/finding endpoint). For the demo flow this login is silent
-      // and automatic -- the visitor never types a password -- which satisfies
-      // "no login required" from their perspective while reusing the same
-      // authenticated API the rest of the app uses.
+      // Results sit behind auth like everything else. For the demo the sign-in is
+      // silent: the visitor never types a password, but the same authenticated
+      // API (and ownership checks) apply.
       if (!isAuthenticated) {
         await login("demo@atlas.ai", "DemoAtlas2024!");
       }
@@ -31,7 +32,7 @@ export default function Demo() {
     } catch (err) {
       setError(
         err.response?.status === 404
-          ? "Could not load demo data. Has seed_demo_data.py been run against this database?"
+          ? "This demo isn't available right now. Please try again shortly."
           : describeError(err)
       );
     } finally {
@@ -40,53 +41,76 @@ export default function Demo() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10">
-      <div className="mb-8 flex items-start gap-3 atlas-card p-4 border-atlas-accent">
-        <ShieldAlert className="w-5 h-5 text-atlas-accent mt-0.5 shrink-0" />
-        <p className="text-sm text-gray-300">
-          <strong>Demo Mode</strong> -- these are pre-computed results, loaded instantly. No live
-          analysis runs when you click a card below.
+    <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
+      <header className="rise max-w-2xl">
+        <p className="eyebrow mb-4">Live demo</p>
+        <h1 className="display text-4xl sm:text-6xl">Three codebases, already surveyed.</h1>
+        <p className="mt-5 text-lg leading-8 text-ink-2">
+          Pick one and open its full report: architecture notes, service boundaries, generated tests, security findings and quality metrics.
         </p>
-      </div>
+        <p className="mt-4 flex items-start gap-2.5 border-l-2 border-accent pl-3 text-sm leading-6 text-ink-2">
+          Results are pre-computed and load instantly. Opening a card does not start a new analysis.
+        </p>
+      </header>
 
-      <h1 className="text-2xl font-semibold mb-6">Try Atlas</h1>
-
-      {error && <p className="text-sm text-atlas-critical mb-4">{error}</p>}
-
-      {demoQuery.isLoading ? (
-        <SkeletonCards count={3} />
-      ) : demoQuery.isError ? (
-        <ErrorCard error={demoQuery.error} onRetry={() => demoQuery.refetch()} />
-      ) : !repos?.length ? (
-        <div className="atlas-card p-8 text-center text-gray-500">
-          No demo data seeded yet. Run <code className="text-gray-300">python seed_demo_data.py</code> from the
-          backend directory.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {repos.map((repo) => (
-            <div key={repo.repository_id} className="atlas-card p-6 flex flex-col">
-              <Coffee className="w-6 h-6 text-atlas-accent mb-3" />
-              <h3 className="font-medium mb-1">{repo.name}</h3>
-              <span className="atlas-badge bg-atlas-accent/20 text-atlas-accent w-fit mb-3">{repo.language}</span>
-              <p className="text-sm text-gray-400 flex-1">{repo.description}</p>
-              <button
-                onClick={() => handleLoad(repo.name)}
-                disabled={loadingRepo === repo.name}
-                className="atlas-btn-primary mt-4 flex items-center justify-center gap-2"
-              >
-                {loadingRepo === repo.name ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Loading...
-                  </>
-                ) : (
-                  "View Results"
-                )}
-              </button>
-            </div>
-          ))}
-        </div>
+      {error && (
+        <p role="alert" className="mt-8 border-l-2 border-crit bg-crit/10 px-3 py-2.5 text-sm text-ink">
+          {error}
+        </p>
       )}
+
+      <div className="mt-12">
+        {demoQuery.isLoading ? (
+          <SkeletonCards count={3} />
+        ) : demoQuery.isError ? (
+          <ErrorCard error={demoQuery.error} onRetry={() => demoQuery.refetch()} />
+        ) : !repos?.length ? (
+          <EmptyState title="The demo isn't loaded yet." message="No demo projects are available on this server right now. Check back soon." />
+        ) : (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            {repos.map((repo, i) => {
+              const busy = loadingRepo === repo.name;
+              return (
+                <button
+                  key={repo.repository_id}
+                  onClick={() => handleLoad(repo.name)}
+                  disabled={!!loadingRepo}
+                  style={{ "--i": i }}
+                  className="panel panel-hover group rise flex flex-col overflow-hidden text-left disabled:cursor-wait disabled:opacity-70"
+                >
+                  <div className="relative h-36 overflow-hidden border-b border-rule bg-sunk">
+                    <Contour
+                      seed={repo.name}
+                      cols={44}
+                      rows={16}
+                      levels={11}
+                      className="h-full w-full scale-105 text-ink/30 transition-transform duration-700 ease-out group-hover:scale-125"
+                    />
+                    <span className="num absolute left-4 top-3 text-xs text-ink-2">Plate {String(i + 1).padStart(2, "0")}</span>
+                    <span className="chip absolute right-3 top-3 bg-card">{repo.language}</span>
+                  </div>
+                  <div className="flex flex-1 flex-col p-6">
+                    <h2 className="text-2xl">{repo.name}</h2>
+                    <p className="mt-2 flex-1 text-sm leading-6 text-ink-2">{repo.description}</p>
+                    <span className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-ink">
+                      {busy ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" /> Opening report…
+                        </>
+                      ) : (
+                        <>
+                          Open the report
+                          <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

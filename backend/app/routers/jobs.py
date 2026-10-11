@@ -155,6 +155,7 @@ async def _job_event_stream(job_id: uuid.UUID):
                     "status": job.status,
                     "percent": job.progress,
                     "current_agent": job.current_agent,
+                    "steps": [s for s in (job.current_step or "").split(",") if s],
                     "tokens": job.total_tokens_used,
                     "rate_limit_hits": job.rate_limit_hits,
                 },

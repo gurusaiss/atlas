@@ -1,34 +1,37 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../api/client.js";
 import { useAtlasStore } from "../store/atlasStore.js";
 
-export function useAuth() {
-  const navigate = useNavigate();
-  const { accessToken, user, login, logout, setUser } = useAtlasStore();
-  const [initializing, setInitializing] = useState(true);
+// Many components call useAuth(); the silent session restore must run exactly
+// once per page load, otherwise each mount races its own /auth/refresh and the
+// rotating refresh cookie gets consumed by whichever request lands first.
+let bootstrapPromise = null;
 
-  useEffect(() => {
-    // On page load there's no access token in memory yet -- try a silent refresh
-    // using the httpOnly cookie before deciding the user is logged out.
-    async function bootstrap() {
-      if (accessToken) {
-        setInitializing(false);
-        return;
-      }
+function bootstrapSession() {
+  if (!bootstrapPromise) {
+    const { accessToken, setAccessToken, setUser, setAuthReady } = useAtlasStore.getState();
+    bootstrapPromise = (async () => {
+      if (accessToken) return;
       try {
         const { data } = await apiClient.post("/auth/refresh");
-        useAtlasStore.getState().setAccessToken(data.access_token);
+        setAccessToken(data.access_token);
         const me = await apiClient.get("/auth/me");
         setUser(me.data);
       } catch {
-        // Not logged in -- that's fine, just proceed unauthenticated.
-      } finally {
-        setInitializing(false);
+        // No valid refresh cookie -- the visitor is simply signed out.
       }
-    }
-    bootstrap();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    })().finally(() => setAuthReady(true));
+  }
+  return bootstrapPromise;
+}
+
+export function useAuth() {
+  const navigate = useNavigate();
+  const { accessToken, user, authReady, login, logout, setUser } = useAtlasStore();
+
+  useEffect(() => {
+    bootstrapSession();
   }, []);
 
   const doLogin = useCallback(
@@ -59,7 +62,7 @@ export function useAuth() {
     accessToken,
     user,
     isAuthenticated: Boolean(accessToken),
-    initializing,
+    initializing: !authReady,
     login: doLogin,
     register: doRegister,
     logout: doLogout,

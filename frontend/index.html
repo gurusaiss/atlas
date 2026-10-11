@@ -2,10 +2,41 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Atlas</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Atlas — map a legacy codebase before you rewrite it</title>
+    <meta
+      name="description"
+      content="Atlas reads a legacy repository and returns an architecture map, service boundaries, generated tests and a security report in a single run."
+    />
+    <meta name="theme-color" content="#F3EEE3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14130F" media="(prefers-color-scheme: dark)" />
+    <meta property="og:title" content="Atlas — map a legacy codebase before you rewrite it" />
+    <meta
+      property="og:description"
+      content="Architecture map, service boundaries, generated tests and a security report from one run."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&display=swap"
+    />
+    <script>
+      // Resolve the theme before first paint so there is no light/dark flash.
+      (function () {
+        try {
+          var saved = localStorage.getItem("atlas-theme");
+          var dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (dark) document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>Atlas needs JavaScript enabled to run.</noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -23,5 +23,7 @@ class JobResponse(BaseModel):
     error_message: str | None
     is_demo: bool
     created_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
 
     model_config = {"from_attributes": True}

@@ -2,18 +2,23 @@ const DEFAULT_BUDGET = 50000;
 
 export default function TokenUsageMeter({ tokensUsed = 0, budget = DEFAULT_BUDGET }) {
   const pct = Math.min(100, Math.round((tokensUsed / budget) * 100));
-  const barColor = pct > 90 ? "bg-atlas-critical" : pct > 70 ? "bg-atlas-warning" : "bg-atlas-accent";
+  const tone = pct > 90 ? "bg-crit" : pct > 70 ? "bg-ochre" : "bg-ink";
 
   return (
-    <div className="atlas-card p-4">
-      <div className="flex justify-between text-sm mb-2">
-        <span className="text-gray-400">Token usage</span>
-        <span className="text-gray-300">
-          {tokensUsed.toLocaleString()} / {budget.toLocaleString()}
-        </span>
+    <div className="panel p-5">
+      <div className="flex items-baseline justify-between">
+        <p className="eyebrow">Token budget</p>
+        <p className="num text-xs text-ink-3">{pct}% used</p>
       </div>
-      <div className="h-2 bg-atlas-bg rounded-full overflow-hidden">
-        <div className={`h-full ${barColor} transition-all duration-500`} style={{ width: `${pct}%` }} />
+      <p className="display mt-3 text-3xl tabular-nums">
+        {tokensUsed.toLocaleString()}
+        <span className="ml-1.5 font-sans text-sm font-normal text-ink-3">/ {budget.toLocaleString()}</span>
+      </p>
+      <div className="relative mt-4 h-1.5 bg-rule" role="progressbar" aria-valuenow={tokensUsed} aria-valuemin={0} aria-valuemax={budget} aria-label="Token usage">
+        <div className={`h-full ${tone} transition-all duration-700 ease-out`} style={{ width: `${pct}%` }} />
+        {[70, 90].map((t) => (
+          <span key={t} className="absolute -top-1 h-3.5 w-px bg-ink-3/50" style={{ left: `${t}%` }} aria-hidden="true" />
+        ))}
       </div>
     </div>
   );

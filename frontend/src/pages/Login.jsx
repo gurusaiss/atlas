@@ -1,9 +1,13 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth.js";
 import { describeError } from "../components/QueryState.jsx";
+import AuthShell, { Field, FormError, PasswordInput } from "../components/AuthShell.jsx";
+import { usePageTitle } from "../hooks/usePageTitle.js";
 
 export default function Login() {
+  usePageTitle("Sign in");
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -13,91 +17,64 @@ export default function Login() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function attempt(creds, onAuthFail) {
     setError("");
     setSubmitting(true);
     try {
-      await login(email, password);
+      await login(creds.email, creds.password);
       navigate(redirectTo, { replace: true });
     } catch (err) {
-      setError(describeError(err));
+      setError(err.response?.status === 401 ? onAuthFail : describeError(err));
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleDemoLogin() {
-    setError("");
-    setSubmitting(true);
-    try {
-      await login("demo@atlas.ai", "DemoAtlas2024!");
-      navigate(redirectTo, { replace: true });
-    } catch (err) {
-      if (err.response?.status === 401) {
-        setError("Demo login failed — has seed_demo_data.py been run against this database?");
-      } else {
-        setError(describeError(err));
-      }
-    } finally {
-      setSubmitting(false);
-    }
+  function handleSubmit(e) {
+    e.preventDefault();
+    attempt({ email, password }, "That email and password don't match an account.");
+  }
+
+  function handleDemoLogin() {
+    attempt({ email: "demo@atlas.ai", password: "DemoAtlas2024!" }, "The demo account isn't available right now.");
   }
 
   return (
-    <div className="min-h-[calc(100vh-56px)] flex items-center justify-center px-4">
-      <div className="atlas-card w-full max-w-sm p-8">
-        <h1 className="text-xl font-semibold mb-6">Log in to Atlas</h1>
-
-        {error && (
-          <div className="mb-4 text-sm text-atlas-critical bg-red-950/30 border border-red-900 rounded p-2">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Email</label>
-            <input
-              type="email"
-              required
-              className="atlas-input w-full"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Password</label>
-            <input
-              type="password"
-              required
-              className="atlas-input w-full"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          <button type="submit" disabled={submitting} className="atlas-btn-primary w-full">
-            {submitting ? "Logging in..." : "Log in"}
-          </button>
-        </form>
-
-        <div className="my-4 flex items-center gap-2 text-xs text-gray-500">
-          <div className="flex-1 h-px bg-atlas-border" />
-          or
-          <div className="flex-1 h-px bg-atlas-border" />
-        </div>
-
-        <button onClick={handleDemoLogin} disabled={submitting} className="atlas-btn-secondary w-full">
-          Log in as demo user
-        </button>
-
-        <p className="mt-6 text-sm text-gray-500 text-center">
-          No account?{" "}
-          <Link to="/register" className="text-atlas-accent hover:underline">
-            Sign up
+    <AuthShell
+      eyebrow="Welcome back"
+      title="Sign in to Atlas"
+      footer={
+        <p>
+          New here?{" "}
+          <Link to="/register" className="link">
+            Create an account
           </Link>
         </p>
+      }
+    >
+      <FormError>{error}</FormError>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <Field label="Email">
+          <input type="email" required autoComplete="email" autoFocus className="field" value={email} onChange={(e) => setEmail(e.target.value)} />
+        </Field>
+        <Field label="Password">
+          <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+        </Field>
+        <button type="submit" disabled={submitting} className="btn btn-primary w-full !py-3">
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {submitting ? "Signing in…" : "Sign in"}
+        </button>
+      </form>
+
+      <div className="my-7 flex items-center gap-3 font-mono text-[0.6875rem] uppercase tracking-widest text-ink-3">
+        <span className="h-px flex-1 bg-rule" />
+        or
+        <span className="h-px flex-1 bg-rule" />
       </div>
-    </div>
+
+      <button onClick={handleDemoLogin} disabled={submitting} className="btn btn-outline w-full">
+        Explore with the demo account
+      </button>
+    </AuthShell>
   );
 }

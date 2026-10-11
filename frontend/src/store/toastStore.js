@@ -9,9 +9,10 @@ export const useToastStore = create((set, get) => ({
 
   push: (toast) => {
     const id = nextId++;
-    set((state) => ({ toasts: [...state.toasts, { id, ...toast }] }));
-    if (toast.duration !== 0) {
-      setTimeout(() => get().dismiss(id), toast.duration ?? DEFAULT_DURATION_MS);
+    const duration = toast.duration ?? DEFAULT_DURATION_MS;
+    set((state) => ({ toasts: [...state.toasts.slice(-3), { id, ...toast, duration }] }));
+    if (duration !== 0) {
+      setTimeout(() => get().dismiss(id), duration);
     }
     return id;
   },
@@ -21,6 +22,6 @@ export const useToastStore = create((set, get) => ({
 
 export const toast = {
   success: (message) => useToastStore.getState().push({ type: "success", message }),
-  error: (message) => useToastStore.getState().push({ type: "error", message }),
+  error: (message) => useToastStore.getState().push({ type: "error", message, duration: 8_000 }),
   info: (message) => useToastStore.getState().push({ type: "info", message }),
 };

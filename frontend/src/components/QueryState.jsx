@@ -1,16 +1,14 @@
 import { AlertTriangle, Inbox, RefreshCw } from "lucide-react";
+import Contour from "./Contour.jsx";
 
 /**
- * Renders the correct state for a react-query result: skeleton while loading,
- * an explicit error card (with retry) on failure, an empty-state card when the
- * request genuinely succeeded but returned nothing.
- *
- * Exists because the naive `isLoading ? ... : !data?.length ? "No items"` pattern
- * renders a *failed* request identically to an empty account -- which actively
- * misleads: during deployment we hit exactly that, where a CORS-blocked call
- * showed "No demo data seeded yet" instead of surfacing the real error.
+ * Renders the right state for a react-query result: skeleton while loading, an
+ * explicit error (with retry) on failure, an empty state when the request
+ * genuinely succeeded but returned nothing. A failed request must never look
+ * like an empty account -- during deployment a CORS-blocked call once showed
+ * "No demo data seeded yet" instead of the real error.
  */
-export function QueryState({ query, emptyMessage, emptyIcon: EmptyIcon = Inbox, skeletonRows = 3, children }) {
+export function QueryState({ query, emptyMessage, emptyTitle, emptyIcon, emptyAction, skeletonRows = 3, children }) {
   if (query.isLoading) {
     return <SkeletonList rows={skeletonRows} />;
   }
@@ -22,26 +20,36 @@ export function QueryState({ query, emptyMessage, emptyIcon: EmptyIcon = Inbox, 
   const data = query.data;
   const isEmpty = Array.isArray(data) ? data.length === 0 : data == null;
   if (isEmpty) {
-    return (
-      <div className="atlas-card p-10 text-center text-gray-500">
-        <EmptyIcon className="w-8 h-8 mx-auto mb-3 opacity-50" aria-hidden="true" />
-        <p className="text-sm">{emptyMessage}</p>
-      </div>
-    );
+    return <EmptyState icon={emptyIcon} title={emptyTitle} message={emptyMessage} action={emptyAction} />;
   }
 
   return children;
 }
 
+export function EmptyState({ icon: Icon = Inbox, title, message, action, seed = "empty" }) {
+  return (
+    <div className="panel relative overflow-hidden px-6 py-14 text-center">
+      <Contour seed={seed} cols={50} rows={24} levels={9} className="absolute inset-0 h-full w-full text-ink/[0.07]" />
+      <div className="relative">
+        <Icon className="mx-auto mb-4 h-6 w-6 text-ink-3" aria-hidden="true" strokeWidth={1.5} />
+        {title && <h3 className="mb-1 text-xl text-ink">{title}</h3>}
+        <p className="mx-auto max-w-sm text-sm leading-6 text-ink-2">{message}</p>
+        {action && <div className="mt-5 flex justify-center">{action}</div>}
+      </div>
+    </div>
+  );
+}
+
 export function SkeletonList({ rows = 3 }) {
   return (
-    <div className="space-y-3" role="status" aria-label="Loading">
+    <div className="panel divide-y divide-rule" role="status" aria-label="Loading">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="atlas-card p-5">
-          <div className="animate-pulse space-y-3">
-            <div className="h-4 bg-atlas-border rounded w-1/3" />
-            <div className="h-3 bg-atlas-border/60 rounded w-2/3" />
+        <div key={i} className="flex items-center justify-between gap-6 px-5 py-4">
+          <div className="flex-1 space-y-2.5">
+            <div className="skeleton h-4 w-1/3" />
+            <div className="skeleton h-3 w-2/3" />
           </div>
+          <div className="skeleton h-4 w-16" />
         </div>
       ))}
       <span className="sr-only">Loading…</span>
@@ -51,13 +59,14 @@ export function SkeletonList({ rows = 3 }) {
 
 export function SkeletonCards({ count = 3 }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" role="status" aria-label="Loading">
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3" role="status" aria-label="Loading">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="atlas-card p-5">
-          <div className="animate-pulse space-y-3">
-            <div className="h-4 bg-atlas-border rounded w-2/3" />
-            <div className="h-3 bg-atlas-border/60 rounded w-full" />
-            <div className="h-3 bg-atlas-border/60 rounded w-1/2" />
+        <div key={i} className="panel overflow-hidden">
+          <div className="skeleton h-24 !rounded-none" />
+          <div className="space-y-3 p-5">
+            <div className="skeleton h-5 w-2/3" />
+            <div className="skeleton h-3 w-full" />
+            <div className="skeleton h-3 w-1/2" />
           </div>
         </div>
       ))}
@@ -66,7 +75,7 @@ export function SkeletonCards({ count = 3 }) {
   );
 }
 
-/** Turns an axios error into something a user can act on. */
+/** Turns an axios error into something a person can act on. */
 export function describeError(error) {
   if (!error) return "Something went wrong.";
   const detail = error.response?.data?.detail;
@@ -76,21 +85,22 @@ export function describeError(error) {
   }
   if (error.response.status === 403) return "You do not have access to this resource.";
   if (error.response.status === 404) return "Not found.";
+  if (error.response.status === 429) return "Too many requests. Give it a minute and try again.";
   if (error.response.status >= 500) return "The server hit an unexpected error. Please try again.";
   return error.message || "Something went wrong.";
 }
 
 export function ErrorCard({ error, onRetry, className = "" }) {
   return (
-    <div className={`atlas-card p-6 border-red-900/60 ${className}`} role="alert">
-      <div className="flex items-start gap-3">
-        <AlertTriangle className="w-5 h-5 text-atlas-critical shrink-0 mt-0.5" aria-hidden="true" />
+    <div className={`panel border-l-2 !border-l-crit p-6 ${className}`} role="alert">
+      <div className="flex items-start gap-4">
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-crit" aria-hidden="true" strokeWidth={1.75} />
         <div className="flex-1">
-          <p className="font-medium text-sm mb-1">Could not load this data</p>
-          <p className="text-sm text-gray-400">{describeError(error)}</p>
+          <p className="font-display text-lg text-ink">That didn't load</p>
+          <p className="mt-1 text-sm leading-6 text-ink-2">{describeError(error)}</p>
           {onRetry && (
-            <button onClick={onRetry} className="atlas-btn-secondary text-sm py-1.5 mt-4 inline-flex items-center gap-2">
-              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+            <button onClick={onRetry} className="btn btn-outline btn-sm mt-4">
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
               Try again
             </button>
           )}

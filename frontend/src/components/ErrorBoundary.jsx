@@ -1,12 +1,10 @@
 import { Component } from "react";
-import { AlertOctagon } from "lucide-react";
 
 /**
- * Catches render-time crashes anywhere below it so a single bad component
- * (a malformed Mermaid diagram, an unexpected null in an agent's JSON output)
- * degrades to a recoverable panel instead of a blank white page.
- *
- * Must be a class component -- React only exposes componentDidCatch there.
+ * Catches render-time crashes below it so a single bad component (a malformed
+ * diagram, an unexpected null in an agent's JSON) degrades to a recoverable
+ * panel instead of a blank page. Must be a class: React only exposes
+ * componentDidCatch there.
  */
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -19,35 +17,35 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Kept as console output rather than shipped to a service: there's no error
-    // -tracking backend wired up, and silently swallowing it would make field
-    // bugs undiagnosable.
     console.error("Unhandled render error:", error, errorInfo);
   }
 
-  handleReset = () => {
-    this.setState({ error: null });
-  };
+  componentDidUpdate(prevProps) {
+    // Navigating to another route should clear a previous crash.
+    if (this.state.error && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ error: null });
+    }
+  }
 
   render() {
     if (!this.state.error) return this.props.children;
 
     return (
-      <div className="max-w-xl mx-auto px-6 py-20 text-center">
-        <AlertOctagon className="w-10 h-10 mx-auto mb-4 text-atlas-critical" aria-hidden="true" />
-        <h1 className="text-xl font-semibold mb-2">Something broke on this page</h1>
-        <p className="text-sm text-gray-400 mb-6">
-          The rest of Atlas is still fine. You can retry this view, or head back to the dashboard.
+      <div className="mx-auto max-w-xl px-6 py-24">
+        <p className="eyebrow mb-3 !text-crit">Unexpected error</p>
+        <h1 className="display text-4xl">This page tripped over itself.</h1>
+        <p className="mt-4 text-sm leading-6 text-ink-2">
+          The rest of Atlas is fine. Retry this view, or head back to your projects.
         </p>
-        <pre className="atlas-card p-3 text-left text-xs text-gray-500 overflow-x-auto mb-6">
+        <pre className="panel mt-6 overflow-x-auto p-3 text-xs text-ink-3">
           {this.state.error?.message || String(this.state.error)}
         </pre>
-        <div className="flex gap-3 justify-center">
-          <button onClick={this.handleReset} className="atlas-btn-primary">
+        <div className="mt-6 flex gap-3">
+          <button onClick={() => this.setState({ error: null })} className="btn btn-primary">
             Retry
           </button>
-          <a href="/dashboard" className="atlas-btn-secondary">
-            Back to dashboard
+          <a href="/dashboard" className="btn btn-outline">
+            Back to projects
           </a>
         </div>
       </div>

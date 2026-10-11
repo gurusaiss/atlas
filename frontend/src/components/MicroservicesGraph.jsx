@@ -1,95 +1,129 @@
 import { useMemo, useState } from "react";
-import ReactFlow, { Background, Controls, MarkerType } from "reactflow";
+import ReactFlow, { Background, Controls, MarkerType, Position } from "reactflow";
 import "reactflow/dist/style.css";
+import { TONE_BG, TONE_TEXT, usePalette } from "../utils/colors.js";
 
-const EFFORT_COLORS = { Low: "#10b981", Medium: "#f59e0b", High: "#ef4444" };
+const EFFORT_TONE = { Low: "moss", Medium: "ochre", High: "crit" };
 
 export default function MicroservicesGraph({ services = [], onSelect }) {
+  const palette = usePalette();
   const [selected, setSelected] = useState(null);
 
   const { nodes, edges } = useMemo(() => {
     const n = services.map((svc, i) => ({
       id: svc.name,
-      position: { x: (i % 3) * 260, y: Math.floor(i / 3) * 160 },
+      position: { x: (i % 3) * 270, y: Math.floor(i / 3) * 150 },
       data: { label: svc.name, service: svc },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
       style: {
-        background: "#161922",
-        border: `2px solid ${EFFORT_COLORS[svc.migration_effort] || "#242836"}`,
-        borderRadius: 8,
-        color: "#f3f4f6",
-        padding: 10,
+        background: palette.card,
+        border: `1.5px solid ${palette[EFFORT_TONE[svc.migration_effort]] || palette.ruleStrong}`,
+        borderRadius: 3,
+        color: palette.ink,
+        padding: 12,
         width: 220,
         fontSize: 13,
+        fontFamily: '"Instrument Sans", sans-serif',
+        fontWeight: 600,
+        boxShadow: `3px 3px 0 ${palette.rule}`,
       },
     }));
 
-    // Edge from lowest-extract-order service to the next, approximating a migration path.
+    // Edges follow the recommended extraction order, approximating a migration path.
     const sorted = [...services].sort((a, b) => (a.extract_order || 0) - (b.extract_order || 0));
     const e = sorted.slice(0, -1).map((svc, i) => ({
       id: `${svc.name}->${sorted[i + 1].name}`,
       source: svc.name,
       target: sorted[i + 1].name,
-      markerEnd: { type: MarkerType.ArrowClosed },
-      style: { stroke: "#4b5563" },
-      label: "extract next",
-      labelStyle: { fill: "#6b7280", fontSize: 10 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: palette.ink3 },
+      style: { stroke: palette.ink3, strokeWidth: 1.25 },
+      label: "then",
+      labelStyle: { fill: palette.ink3, fontSize: 10 },
+      labelBgStyle: { fill: palette.card },
     }));
 
     return { nodes: n, edges: e };
-  }, [services]);
+  }, [services, palette]);
 
   function handleNodeClick(_, node) {
     setSelected(node.data.service);
     onSelect?.(node.data.service);
   }
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <div className="lg:col-span-2 atlas-card" style={{ height: 420 }}>
-        <ReactFlow nodes={nodes} edges={edges} onNodeClick={handleNodeClick} fitView proOptions={{ hideAttribution: true }}>
-          <Background color="#242836" gap={20} />
-          <Controls />
-        </ReactFlow>
-      </div>
+  const ordered = [...services].sort((a, b) => (a.extract_order || 0) - (b.extract_order || 0));
 
-      <div className="atlas-card p-4">
-        <div className="flex gap-3 mb-4 text-xs">
-          {Object.entries(EFFORT_COLORS).map(([label, color]) => (
-            <span key={label} className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
-              {label}
-            </span>
-          ))}
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-5 lg:grid-cols-[1.7fr_1fr]">
+        <div className="panel" style={{ height: 400 }}>
+          <ReactFlow nodes={nodes} edges={edges} onNodeClick={handleNodeClick} fitView proOptions={{ hideAttribution: true }} nodesConnectable={false}>
+            <Background color={palette.rule} gap={22} size={1.2} />
+            <Controls showInteractive={false} />
+          </ReactFlow>
         </div>
 
-        {selected ? (
-          <div className="space-y-2 text-sm">
-            <h3 className="font-medium">{selected.name}</h3>
-            <p className="text-gray-400">{selected.responsibility}</p>
-            <p className="text-xs text-gray-500">Migration effort: {selected.migration_effort}</p>
-            <p className="text-xs text-gray-500">Extract order: #{selected.extract_order}</p>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Files</p>
-              <ul className="text-xs font-mono text-gray-400 space-y-0.5">
-                {selected.files?.map((f) => (
-                  <li key={f}>{f}</li>
-                ))}
-              </ul>
-            </div>
-            {selected.api_surface?.length > 0 && (
+        <div className="panel p-5">
+          <ul className="mb-5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-2">
+            {Object.entries(EFFORT_TONE).map(([label, tone]) => (
+              <li key={label} className="flex items-center gap-1.5">
+                <span className={`h-2.5 w-2.5 ${TONE_BG[tone]}`} />
+                {label} effort
+              </li>
+            ))}
+          </ul>
+
+          {selected ? (
+            <div key={selected.name} className="animate-fade space-y-4 text-sm">
               <div>
-                <p className="text-xs text-gray-500 mb-1">API surface</p>
-                <ul className="text-xs font-mono text-gray-400 space-y-0.5">
-                  {selected.api_surface.map((a) => (
-                    <li key={a}>{a}</li>
+                <h3 className="text-xl">{selected.name}</h3>
+                <p className="mt-1 leading-6 text-ink-2">{selected.responsibility}</p>
+              </div>
+              <p className="num text-xs text-ink-3">
+                Extract #{selected.extract_order} ·{" "}
+                <span className={TONE_TEXT[EFFORT_TONE[selected.migration_effort]]}>{selected.migration_effort} effort</span>
+              </p>
+              <div>
+                <p className="eyebrow mb-1.5">Files</p>
+                <ul className="space-y-0.5 font-mono text-xs text-ink-2">
+                  {selected.files?.map((f) => (
+                    <li key={f} className="break-all">{f}</li>
                   ))}
                 </ul>
               </div>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500">Click a service node to see details.</p>
-        )}
+              {selected.api_surface?.length > 0 && (
+                <div>
+                  <p className="eyebrow mb-1.5">API surface</p>
+                  <ul className="space-y-0.5 font-mono text-xs text-ink-2">
+                    {selected.api_surface.map((a) => (
+                      <li key={a}>{a}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm leading-6 text-ink-3">Select a service on the map to see its files, API surface and migration effort.</p>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="eyebrow mb-3">Suggested extraction order</h3>
+        <ol className="panel divide-y divide-rule">
+          {ordered.map((svc, i) => (
+            <li key={svc.name}>
+              <button
+                onClick={() => handleNodeClick(null, { data: { service: svc } })}
+                className="flex w-full items-center gap-4 px-5 py-3.5 text-left transition-colors hover:bg-sunk/60"
+              >
+                <span className="num w-6 text-sm text-ink-3">{String(i + 1).padStart(2, "0")}</span>
+                <span className="flex-1 font-display text-lg text-ink">{svc.name}</span>
+                <span className={`font-mono text-[0.6875rem] uppercase tracking-wider ${TONE_TEXT[EFFORT_TONE[svc.migration_effort]]}`}>{svc.migration_effort}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
       </div>
     </div>
   );

@@ -1,9 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth.js";
 import { describeError } from "../components/QueryState.jsx";
+import AuthShell, { Field, FormError, PasswordInput } from "../components/AuthShell.jsx";
+import { usePageTitle } from "../hooks/usePageTitle.js";
 
 export default function Register() {
+  usePageTitle("Create account");
   const { register, login } = useAuth();
   const navigate = useNavigate();
   const [fullName, setFullName] = useState("");
@@ -28,55 +32,35 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-56px)] flex items-center justify-center px-4">
-      <div className="atlas-card w-full max-w-sm p-8">
-        <h1 className="text-xl font-semibold mb-6">Create your Atlas account</h1>
-
-        {error && (
-          <div className="mb-4 text-sm text-atlas-critical bg-red-950/30 border border-red-900 rounded p-2">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Full name</label>
-            <input className="atlas-input w-full" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Email</label>
-            <input
-              type="email"
-              required
-              className="atlas-input w-full"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Password</label>
-            <input
-              type="password"
-              required
-              minLength={8}
-              className="atlas-input w-full"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <p className="text-xs text-gray-500 mt-1">At least 8 characters.</p>
-          </div>
-          <button type="submit" disabled={submitting} className="atlas-btn-primary w-full">
-            {submitting ? "Creating account..." : "Sign up"}
-          </button>
-        </form>
-
-        <p className="mt-6 text-sm text-gray-500 text-center">
-          Already have an account?{" "}
-          <Link to="/login" className="text-atlas-accent hover:underline">
-            Log in
+    <AuthShell
+      eyebrow="Get started"
+      title="Create your account"
+      subtitle="Free to try. Upload a repository and get your first report in minutes."
+      footer={
+        <p>
+          Already registered?{" "}
+          <Link to="/login" className="link">
+            Sign in
           </Link>
         </p>
-      </div>
-    </div>
+      }
+    >
+      <FormError>{error}</FormError>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <Field label="Full name">
+          <input autoComplete="name" autoFocus className="field" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        </Field>
+        <Field label="Email">
+          <input type="email" required autoComplete="email" className="field" value={email} onChange={(e) => setEmail(e.target.value)} />
+        </Field>
+        <Field label="Password" hint="At least 8 characters.">
+          <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={8} />
+        </Field>
+        <button type="submit" disabled={submitting} className="btn btn-primary w-full !py-3">
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {submitting ? "Creating account…" : "Create account"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }
