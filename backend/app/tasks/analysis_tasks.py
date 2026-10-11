@@ -290,6 +290,33 @@ async def _persist_results(db, job: Job, repository: Repository, state: dict) ->
     await db.commit()
 
 
+# --- In-process execution (used by the API on single-container deploys) -------
+# Running a second Celery worker process doubles the import footprint of this
+# dependency stack, which does not fit in a 512Mi Render free-tier instance.
+# Jobs run as asyncio tasks inside the web process instead, one at a time.
+_running_jobs: dict[str, asyncio.Task] = {}
+_pipeline_slot = asyncio.Semaphore(1)
+
+
+async def _run_guarded(job_id: str) -> None:
+    async with _pipeline_slot:
+        await _run_pipeline_async(job_id)
+
+
+def start_job_in_process(job_id: str) -> None:
+    task = asyncio.create_task(_run_guarded(job_id))
+    _running_jobs[job_id] = task
+    task.add_done_callback(lambda _t: _running_jobs.pop(job_id, None))
+
+
+def cancel_job_in_process(job_id: str) -> bool:
+    task = _running_jobs.get(job_id)
+    if task is None:
+        return False
+    task.cancel()
+    return True
+
+
 @celery_app.task(name="atlas.run_full_analysis", bind=True)
 def run_full_analysis(self, job_id: str) -> str:
     """Celery entry point -- runs the async pipeline via a fresh event loop per task."""

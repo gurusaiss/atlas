@@ -15,7 +15,7 @@ from app.models.repository import Repository
 from app.models.user import User
 from app.rate_limit import limiter
 from app.schemas.job import JobCreate, JobResponse
-from app.tasks.analysis_tasks import run_full_analysis
+from app.tasks.analysis_tasks import cancel_job_in_process, start_job_in_process
 from app.utils.sse import sse_event
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
@@ -68,10 +68,7 @@ async def create_job(
     await db.commit()
     await db.refresh(job)
 
-    task = run_full_analysis.delay(str(job.id))
-    job.celery_task_id = task.id
-    await db.commit()
-    await db.refresh(job)
+    start_job_in_process(str(job.id))
 
     return job
 
@@ -190,9 +187,6 @@ async def cancel_job(
 ):
     job = await _get_owned_job(db, job_id, user)
     if job.status in ("queued", "running"):
-        from app.tasks.celery_app import celery_app
-
-        if job.celery_task_id:
-            celery_app.control.revoke(job.celery_task_id, terminate=True)
+        cancel_job_in_process(str(job.id))
         job.status = "cancelled"
         await db.commit()
